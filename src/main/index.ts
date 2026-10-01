@@ -106,8 +106,8 @@ function registerIpcHandlers() {
     return true;
   });
 
-  ipcMain.handle('auth:set-manual-token', (_event, token: string) => {
-    const session = authManager.setManualToken(token);
+  ipcMain.handle('auth:set-manual-token', (_event, token: string, refreshToken?: string) => {
+    const session = authManager.setManualToken(token, refreshToken);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auth:status-changed', session);
     }
@@ -119,6 +119,23 @@ function registerIpcHandlers() {
       }).catch(console.error);
     }
     return session;
+  });
+
+  ipcMain.handle('auth:refresh-token', async () => {
+    console.log('IPC: auth:refresh-token solicitado');
+    const success = await authManager.refreshAccessToken();
+    const session = storage.getSession();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('auth:status-changed', session);
+    }
+    if (success && session.token) {
+      apiClient.fetchCompetences(true).then((comps) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('competences:updated', comps);
+        }
+      }).catch(console.error);
+    }
+    return { success, session };
   });
 
   ipcMain.handle('auth:logout', async () => {

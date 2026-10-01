@@ -29,10 +29,12 @@ class StorageService {
   private settings: AppSettings = DEFAULT_SETTINGS;
   private session: AuthSession = {
     token: null,
+    refreshToken: null,
     cookies: {},
     user: null,
     lastLogin: null,
     expiresAt: null,
+    refreshExpiresAt: null,
   };
   private cachedCompetences: CompetenceItem[] = [];
 
@@ -122,10 +124,12 @@ class StorageService {
   public clearSession(): void {
     this.session = {
       token: null,
+      refreshToken: null,
       cookies: {},
       user: null,
       lastLogin: null,
       expiresAt: null,
+      refreshExpiresAt: null,
       isExpired: false,
     };
     this.save();

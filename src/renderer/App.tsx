@@ -227,13 +227,13 @@ export const App: React.FC = () => {
     showToast('success', 'Configurações salvas com sucesso!');
   };
 
-  const handleSaveManualToken = async (token: string) => {
+  const handleSaveManualToken = async (token: string, refreshToken?: string) => {
     if (window.electronAPI) {
-      const updatedSession = await window.electronAPI.setManualToken(token);
+      const updatedSession = await window.electronAPI.setManualToken(token, refreshToken);
       setSession(updatedSession);
-      if (token) {
-        showToast('success', 'Token JWT aplicado com sucesso!');
-        setCurrentScreen('chat');
+      if (token || refreshToken) {
+        showToast('success', 'Credenciais de autenticação salvas com sucesso!');
+        if (token) setCurrentScreen('chat');
       }
     }
   };

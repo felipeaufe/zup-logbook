@@ -5,7 +5,8 @@ export interface ElectronAPI {
   getSession: () => Promise<AuthSession>;
   startLogin: () => Promise<boolean>;
   cancelLogin: () => Promise<boolean>;
-  setManualToken: (token: string) => Promise<AuthSession>;
+  setManualToken: (token: string, refreshToken?: string) => Promise<AuthSession>;
+  refreshToken: () => Promise<{ success: boolean; session: AuthSession }>;
   logout: () => Promise<AuthSession>;
   getSettings: () => Promise<AppSettings>;
   saveSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>;
@@ -20,7 +21,9 @@ const electronAPI: ElectronAPI = {
   getSession: () => ipcRenderer.invoke('auth:get-session'),
   startLogin: () => ipcRenderer.invoke('auth:start-login'),
   cancelLogin: () => ipcRenderer.invoke('auth:cancel-login'),
-  setManualToken: (token: string) => ipcRenderer.invoke('auth:set-manual-token', token),
+  setManualToken: (token: string, refreshToken?: string) =>
+    ipcRenderer.invoke('auth:set-manual-token', token, refreshToken),
+  refreshToken: () => ipcRenderer.invoke('auth:refresh-token'),
   logout: () => ipcRenderer.invoke('auth:logout'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),

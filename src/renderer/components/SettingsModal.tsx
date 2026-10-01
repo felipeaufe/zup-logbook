@@ -13,7 +13,7 @@ interface SettingsModalProps {
   settings: AppSettings;
   session: AuthSession;
   onSaveSettings: (settings: Partial<AppSettings>) => void;
-  onSaveManualToken: (token: string) => void;
+  onSaveManualToken: (token: string, refreshToken?: string) => void;
   onTriggerSilentRefresh?: () => void;
 }
 
@@ -28,14 +28,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [manualToken, setManualToken] = useState(session.token || '');
+  const [manualRefreshToken, setManualRefreshToken] = useState(session.refreshToken || '');
   const [showSecret, setShowSecret] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [activeTab, setActiveTab] = useState<'ai' | 'people' | 'rules'>('ai');
   const [copiedToken, setCopiedToken] = useState(false);
+  const [isRefreshingToken, setIsRefreshingToken] = useState(false);
+  const [refreshFeedback, setRefreshFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     setFormData(settings);
     setManualToken(session.token || '');
+    setManualRefreshToken(session.refreshToken || '');
   }, [settings, session, isOpen]);
 
   if (!isOpen) return null;
@@ -43,10 +47,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     onSaveSettings(formData);
-    if (manualToken && manualToken !== session.token) {
-      onSaveManualToken(manualToken.trim());
+    if (
+      (manualToken && manualToken !== session.token) ||
+      (manualRefreshToken && manualRefreshToken !== session.refreshToken)
+    ) {
+      onSaveManualToken(manualToken.trim(), manualRefreshToken.trim() || undefined);
     }
     onClose();
+  };
+
+  const handleManualRefresh = async () => {
+    if (!window.electronAPI) return;
+    setIsRefreshingToken(true);
+    setRefreshFeedback(null);
+    try {
+      const res = await window.electronAPI.refreshToken();
+      if (res.success) {
+        setRefreshFeedback({ success: true, message: 'Token renovado com sucesso via Keycloak!' });
+      } else {
+        setRefreshFeedback({
+          success: false,
+          message: 'Não foi possível renovar. O refresh token pode ter expirado ou não estar presente.',
+        });
+      }
+    } catch (err: any) {
+      setRefreshFeedback({ success: false, message: `Erro: ${err.message}` });
+    } finally {
+      setIsRefreshingToken(false);
+      setTimeout(() => setRefreshFeedback(null), 5000);
+    }
   };
 
   const handleCopyToken = () => {
@@ -270,7 +299,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               {/* Status da Sessão e Expiração */}
-              <div className="p-4 bg-[#171924] border border-[#262A3B] rounded-xl space-y-2.5">
+              <div className="p-4 bg-[#171924] border border-[#262A3B] rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span
@@ -278,7 +307,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         session.token && !isTokenExpired ? 'bg-emerald-400' : 'bg-amber-400'
                       }`}
                     ></span>
-                    <span className="text-base font-semibold text-white">Status da Sessão</span>
+                    <span className="text-base font-semibold text-white">Status da Sessão (JWT)</span>
                   </div>
 
                   {session.token && (
@@ -294,9 +323,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
 
                 <div className="text-sm text-gray-300 flex items-center gap-2">
-                  <span>Validade do Token:</span>
+                  <span>Validade do Access Token:</span>
                   {session.expiresAt ? (
-                    <span className={isTokenExpired ? 'text-rose-400 font-bold' : 'text-emerald-400'}>
+                    <span className={isTokenExpired ? 'text-rose-400 font-bold' : 'text-emerald-400 font-medium'}>
                       {isTokenExpired ? 'Expirado em ' : 'Válido até '}
                       {new Date(session.expiresAt).toLocaleString()}
                     </span>
@@ -305,26 +334,90 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   )}
                 </div>
 
-                {isTokenExpired && (
-                  <div className="flex items-center gap-2 text-sm text-amber-300 bg-amber-950/30 p-2.5 rounded-lg border border-amber-500/20">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>O token expirou. Ao enviar um diário, o app tentará renovar automaticamente em background.</span>
+                {/* Bloco do Keycloak Refresh Token */}
+                <div className="pt-2 border-t border-[#262A3B] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <RefreshCw className={`w-3.5 h-3.5 ${session.refreshToken ? 'text-emerald-400' : 'text-gray-500'}`} />
+                      <span className="text-sm font-semibold text-gray-200">Keycloak Refresh Token:</span>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded font-medium ${
+                          session.refreshToken
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                        }`}
+                      >
+                        {session.refreshToken ? 'Disponível para renovação' : 'Não capturado'}
+                      </span>
+                    </div>
+
+                    {session.refreshToken && (
+                      <button
+                        type="button"
+                        onClick={handleManualRefresh}
+                        disabled={isRefreshingToken}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
+                        title="Dispara a requisição oficial ao Keycloak para renovar o token"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isRefreshingToken ? 'animate-spin text-purple-300' : ''}`} />
+                        <span>{isRefreshingToken ? 'Renovando...' : 'Renovar Token Agora'}</span>
+                      </button>
+                    )}
                   </div>
-                )}
+
+                  {refreshFeedback && (
+                    <div
+                      className={`text-xs p-2 rounded-lg border ${
+                        refreshFeedback.success
+                          ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30'
+                          : 'bg-rose-950/40 text-rose-300 border-rose-500/30'
+                      }`}
+                    >
+                      {refreshFeedback.message}
+                    </div>
+                  )}
+
+                  {isTokenExpired && (
+                    <div className="flex items-center gap-2 text-xs text-amber-300 bg-amber-950/30 p-2.5 rounded-lg border border-amber-500/20">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>
+                        O token expirou. Ao enviar um diário, o app tentará renovar automaticamente no Keycloak.
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Manual Token */}
-              <div>
-                <label className="text-sm font-semibold text-gray-300 block mb-1.5">
-                  Token JWT Manual (Caso deseje colar manualmente)
-                </label>
-                <textarea
-                  rows={3}
-                  value={manualToken}
-                  onChange={(e) => setManualToken(e.target.value)}
-                  placeholder="Bearer eyJhbGciOi..."
-                  className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-sm text-gray-300 focus:outline-none focus:border-purple-500 font-mono"
-                />
+              {/* Manual Tokens */}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-semibold text-gray-300 block mb-1">
+                    Access Token JWT Manual (Opcional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={manualToken}
+                    onChange={(e) => setManualToken(e.target.value)}
+                    placeholder="Bearer eyJhbGciOi..."
+                    className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2 text-xs text-gray-300 focus:outline-none focus:border-purple-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold text-gray-300 block mb-1">
+                    Refresh Token Keycloak Manual (Opcional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={manualRefreshToken}
+                    onChange={(e) => setManualRefreshToken(e.target.value)}
+                    placeholder="eyJhbGciOi..."
+                    className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2 text-xs text-gray-300 focus:outline-none focus:border-purple-500 font-mono"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Ao autenticar com 2FA pelo app, ambos os tokens são capturados automaticamente do Keycloak.
+                  </p>
+                </div>
               </div>
             </div>
           )}

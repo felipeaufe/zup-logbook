@@ -5,6 +5,7 @@ export interface CompetenceItem {
 
 export interface AuthSession {
   token: string | null;
+  refreshToken?: string | null;
   cookies: Record<string, string>;
   user: {
     name?: string;
@@ -13,6 +14,7 @@ export interface AuthSession {
   } | null;
   lastLogin: string | null;
   expiresAt: string | null;
+  refreshExpiresAt?: string | null;
   isExpired?: boolean;
 }
 

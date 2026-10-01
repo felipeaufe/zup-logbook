@@ -3,6 +3,46 @@ import { authManager } from './auth-manager';
 import { LogbookDraft, SubmissionResult, CompetenceItem } from '../types';
 import { setDynamicCompetences, getAvailableCompetences } from '../data/competences';
 
+function isLikelyTokenExpired(status: number, responseData: any, responseText: string): boolean {
+  if (status === 401 || status === 403) return true;
+  if (status === 400) {
+    const text = (
+      JSON.stringify(responseData || '') +
+      ' ' +
+      (responseText || '')
+    ).toLowerCase();
+
+    // Palavras-chave típicas de expiração / erro de autenticação em APIs e Gateways da Zup
+    if (
+      text.includes('token') ||
+      text.includes('expired') ||
+      text.includes('expirou') ||
+      text.includes('expirado') ||
+      text.includes('jwt') ||
+      text.includes('unauthorized') ||
+      text.includes('invalid_token') ||
+      text.includes('bearer') ||
+      text.includes('auth') ||
+      text.includes('forbidden')
+    ) {
+      return true;
+    }
+
+    const session = storage.getSession();
+    if (session.isExpired) return true;
+    if (session.expiresAt) {
+      const expTime = new Date(session.expiresAt).getTime();
+      if (Date.now() >= expTime - 30000) return true;
+    }
+
+    // Se temos refresh_token e status é 400, no People portal isso indica expiração
+    if (session.refreshToken) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export class ApiClient {
   public async fetchCompetences(forceRefresh = false): Promise<CompetenceItem[]> {
     const session = storage.getSession();
@@ -36,9 +76,9 @@ export class ApiClient {
         headers,
       });
 
-      if (response.status === 401) {
-        console.warn('401 ao buscar competências. Tentando renovar token silenciosamente...');
-        const renewed = await authManager.refreshTokenSilently();
+      if (response.status === 401 || response.status === 400) {
+        console.warn(`${response.status} ao buscar competências. Tentando renovar token via refresh_token...`);
+        const renewed = (await authManager.refreshAccessToken()) || (await authManager.refreshTokenSilently());
         if (renewed) {
           const freshSession = storage.getSession();
           headers.authorization = `Bearer ${freshSession.token}`;
@@ -77,10 +117,10 @@ export class ApiClient {
       };
     }
 
-    // Se o token já expirou de acordo com o JWT exp, tentar renovação silenciosa antes de enviar
+    // Se o token já expirou de acordo com o JWT exp, tentar renovação via refresh_token antes de enviar
     if (session.isExpired && !isRetry) {
-      console.log('Token JWT expirado detectado antes do envio. Tentando renovação silenciosa...');
-      const renewed = await authManager.refreshTokenSilently();
+      console.log('Token JWT expirado detectado antes do envio. Renovando via refresh_token...');
+      const renewed = (await authManager.refreshAccessToken()) || (await authManager.refreshTokenSilently());
       if (renewed) {
         return this.submitLogbook(draft, true);
       }
@@ -162,23 +202,28 @@ export class ApiClient {
         };
       }
 
-      // Se retornou 401 (token expirado) e ainda não tentamos retry:
-      if (response.status === 401 && !isRetry) {
-        console.warn('API retornou 401 Unauthorized. Tentando renovação silenciosa do token...');
-        const renewed = await authManager.refreshTokenSilently();
+      // Se retornou 400 ou 401 por expiração de token e ainda não tentamos retry:
+      if (!isRetry && isLikelyTokenExpired(response.status, responseData, responseText)) {
+        console.warn(`API retornou ${response.status} indicando token expirado. Renovando via refresh_token...`);
+        let renewed = await authManager.refreshAccessToken();
+        if (!renewed) {
+          console.warn('Renovação direta via refresh_token falhou, tentando fallback silencioso...');
+          renewed = await authManager.refreshTokenSilently();
+        }
+
         if (renewed) {
-          console.log('Token renovado com sucesso. Reenviando requisição...');
+          console.log('Token renovado com sucesso. Reenviando requisição do diário...');
           const retryResult = await this.submitLogbook(draft, true);
           retryResult.refreshedToken = true;
           return retryResult;
         }
 
-        // Se renovação silenciosa falhar, solicitar reautenticação
+        // Se ambas as renovações falharem, solicitar reautenticação
         authManager.openLogin();
         return {
           success: false,
           message: 'Sua sessão expirou no People Zup. Abrimos a janela de login para você revalidar seu 2FA.',
-          responseStatus: 401,
+          responseStatus: response.status,
           data: responseData,
         };
       }
