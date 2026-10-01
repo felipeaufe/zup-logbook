@@ -88,13 +88,12 @@ export class ApiClient {
 
     const targetUrl = settings.logbookEndpoint || 'https://apiznt.zenity.zup.com.br/dune/v1/entry';
 
-    // Obtém o texto completo do diário (prioriza draft.content, com fallback para blocos) limitado a 2000 caracteres
-    const rawContent =
+    // Obtém o texto completo do diário (prioriza draft.content, com fallback para blocos) sem limitação artificial de caracteres
+    const plainContent =
       (draft.content && draft.content.trim()) ||
       (draft.blocks && draft.blocks.length > 0
         ? draft.blocks.map((b) => `${b.title}\n${b.description}`).join('\n\n')
         : '');
-    const plainContent = rawContent.slice(0, 2000);
 
     // Converte o texto linha por linha para a estrutura Slate AST (formattedContent), exatamente como o portal do People Zup faz
     const formattedContent = plainContent.split('\n').map((line) => ({

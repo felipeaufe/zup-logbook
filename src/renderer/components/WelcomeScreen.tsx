@@ -19,9 +19,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       <div className="max-w-2xl w-full flex flex-col items-center animate-fade-in">
         {/* Glow Logo badge */}
         <div className="relative mb-6">
-          <div className="absolute -inset-2 bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl blur-lg opacity-40 animate-pulse"></div>
-          <div className="relative w-20 h-20 rounded-2xl bg-[#181A22] border border-orange-500/40 flex items-center justify-center shadow-2xl">
-            <BookOpen className="w-10 h-10 text-orange-400" />
+          <div className="absolute -inset-2 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl blur-lg opacity-40 animate-pulse"></div>
+          <div className="relative w-20 h-20 rounded-2xl bg-[#181A22] border border-purple-500/40 flex items-center justify-center shadow-2xl">
+            <BookOpen className="w-10 h-10 text-purple-400" />
           </div>
         </div>
 
@@ -30,14 +30,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           Diário de Bordo Inteligente
         </h1>
         <p className="text-gray-400 text-base max-w-lg mb-8 leading-relaxed">
-          Registre suas atividades diárias no <span className="text-orange-400 font-medium">People Zup</span> de forma rápida e natural. Basta relatar o que você fez em linguagem livre e nosso agente de IA estrutura, valida e submete o registro por você.
+          Registre suas atividades diárias no <span className="text-purple-400 font-medium">People Zup</span> de forma rápida e natural. Basta relatar o que você fez em linguagem livre e nosso agente de IA estrutura, valida e submete o registro por você.
         </p>
 
         {/* 3 Step Features */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full mb-10 text-left">
-          <div className="p-4 rounded-xl bg-[#161821] border border-[#222532] shadow-sm hover:border-orange-500/30 transition-all">
-            <div className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center mb-3">
-              <KeyRound className="w-4 h-4 text-orange-400" />
+          <div className="p-4 rounded-xl bg-[#161821] border border-[#222532] shadow-sm hover:border-purple-500/30 transition-all">
+            <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-3">
+              <KeyRound className="w-4 h-4 text-purple-400" />
             </div>
             <h3 className="font-semibold text-white text-base mb-1">1. Autenticação 2FA</h3>
             <p className="text-sm text-gray-400">
@@ -45,9 +45,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             </p>
           </div>
 
-          <div className="p-4 rounded-xl bg-[#161821] border border-[#222532] shadow-sm hover:border-orange-500/30 transition-all">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-3">
-              <Sparkles className="w-4 h-4 text-amber-400" />
+          <div className="p-4 rounded-xl bg-[#161821] border border-[#222532] shadow-sm hover:border-purple-500/30 transition-all">
+            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-3">
+              <Sparkles className="w-4 h-4 text-indigo-400" />
             </div>
             <h3 className="font-semibold text-white text-base mb-1">2. Assistente com IA</h3>
             <p className="text-sm text-gray-400">
@@ -55,7 +55,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             </p>
           </div>
 
-          <div className="p-4 rounded-xl bg-[#161821] border border-[#222532] shadow-sm hover:border-orange-500/30 transition-all">
+          <div className="p-4 rounded-xl bg-[#161821] border border-[#222532] shadow-sm hover:border-purple-500/30 transition-all">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-3">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             </div>
@@ -71,7 +71,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <button
               onClick={onContinueToChat}
-              className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold text-base shadow-xl shadow-orange-500/25 transition-all hover:scale-[1.02] cursor-pointer"
+              className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base shadow-xl shadow-purple-600/25 transition-all hover:scale-[1.02] cursor-pointer"
             >
               <span>Abrir Chat do Agente</span>
               <ArrowRight className="w-4 h-4" />
@@ -87,7 +87,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <button
               onClick={onStartLogin}
-              className="flex items-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold text-base shadow-xl shadow-orange-500/25 transition-all hover:scale-[1.02] cursor-pointer"
+              className="flex items-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold text-base shadow-xl shadow-purple-600/25 transition-all hover:scale-[1.02] cursor-pointer"
             >
               <KeyRound className="w-4 h-4" />
               <span>Conectar ao People Zup</span>

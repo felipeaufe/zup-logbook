@@ -2,6 +2,11 @@ import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { AppSettings, AuthSession, CompetenceItem } from '../types';
+import {
+  DEFAULT_INSTRUCTIONS,
+  DEFAULT_LEADERSHIP_TEMPLATE,
+  DEFAULT_NON_LEADERSHIP_TEMPLATE,
+} from '../data/templates';
 
 const DEFAULT_SETTINGS: AppSettings = {
   aiProvider: 'stackspot',
@@ -13,13 +18,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   aiModel: 'gemini-2.5-flash',
   peopleBaseUrl: 'https://people.zup.com.br',
   logbookEndpoint: 'https://apiznt.zenity.zup.com.br/dune/v1/entry',
-  customInstructions: `Você é o assistente inteligente de Diário de Bordo da Zup. 
-Sua missão é transformar os relatos informais do Zupper em registros claros, objetivos, profissionais e organizados de Diário de Bordo para a plataforma People.
-Regras:
-1. Crie um Título impactante e profissional para o diário.
-2. Estruture o conteúdo utilizando os templates e seções oficiais da Zup.
-3. Selecione as competências técnicas e comportamentais mais relevantes para o relato EXCLUSIVAMENTE a partir do catálogo oficial fornecido.
-4. O template padrão é NON_LEADERSHIP (ou LEADERSHIP se for liderança).`,
+  customInstructions: DEFAULT_INSTRUCTIONS,
+  leadershipTemplate: DEFAULT_LEADERSHIP_TEMPLATE,
+  nonLeadershipTemplate: DEFAULT_NON_LEADERSHIP_TEMPLATE,
   saveSession: true,
 };
 
@@ -46,6 +47,15 @@ class StorageService {
       if (fs.existsSync(this.configPath)) {
         const data = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
         this.settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}) };
+        if (!this.settings.leadershipTemplate) {
+          this.settings.leadershipTemplate = DEFAULT_LEADERSHIP_TEMPLATE;
+        }
+        if (!this.settings.nonLeadershipTemplate) {
+          this.settings.nonLeadershipTemplate = DEFAULT_NON_LEADERSHIP_TEMPLATE;
+        }
+        if (!this.settings.customInstructions) {
+          this.settings.customInstructions = DEFAULT_INSTRUCTIONS;
+        }
         if (data.session && this.settings.saveSession) {
           this.session = { ...this.session, ...data.session };
         }

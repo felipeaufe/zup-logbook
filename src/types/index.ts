@@ -48,6 +48,8 @@ export interface AppSettings {
   peopleBaseUrl: string;
   logbookEndpoint: string;
   customInstructions: string;
+  leadershipTemplate?: string;
+  nonLeadershipTemplate?: string;
   saveSession: boolean;
   capturedHeaders?: Record<string, string>;
 }

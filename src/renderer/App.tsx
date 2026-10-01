@@ -6,8 +6,21 @@ import { WelcomeScreen } from './components/WelcomeScreen';
 import { ChatInterface } from './components/ChatInterface';
 import { SettingsModal } from './components/SettingsModal';
 import { Toast, ToastProps } from './components/Toast';
+import {
+  DEFAULT_INSTRUCTIONS,
+  DEFAULT_LEADERSHIP_TEMPLATE,
+  DEFAULT_NON_LEADERSHIP_TEMPLATE,
+} from '../data/templates';
 
 
+
+function cleanErrorMessage(err: any): string {
+  const msg = err?.message || String(err || '');
+  return msg
+    .replace(/^Error invoking remote method '[^']+':\s*/i, '')
+    .replace(/^Error:\s*/i, '')
+    .trim();
+}
 
 // Auxiliar para Registro Manual / Livre (sem título, sem competências, texto bruto)
 function createLivreDraft(userInput: string): LogbookDraft {
@@ -24,6 +37,24 @@ function createLivreDraft(userInput: string): LogbookDraft {
     hours,
     rawInput: userInput,
     type: 'livre',
+  };
+}
+
+// Auxiliar para formulário manual de Registro de Performance
+function createPerformanceDraft(userInput: string, existingDraft?: LogbookDraft): LogbookDraft {
+  const hoursMatch = userInput.match(/(\d+)\s*(?:h|horas|hrs|hora)/i);
+  const hours = existingDraft?.hours || (hoursMatch ? parseInt(hoursMatch[1], 10) : 8);
+
+  return {
+    title: existingDraft?.title || '',
+    blocks: existingDraft?.blocks || [],
+    content: existingDraft?.content || userInput,
+    templateFor: existingDraft?.templateFor || 'NON_LEADERSHIP',
+    isPerformanceReview: true,
+    competences: existingDraft?.competences || [],
+    hours,
+    rawInput: userInput,
+    type: 'performance',
   };
 }
 
@@ -46,7 +77,9 @@ export const App: React.FC = () => {
     aiModel: 'gemini-2.5-flash',
     peopleBaseUrl: 'https://people.zup.com.br',
     logbookEndpoint: 'https://apiznt.zenity.zup.com.br/dune/v1/entry',
-    customInstructions: '',
+    customInstructions: DEFAULT_INSTRUCTIONS,
+    leadershipTemplate: DEFAULT_LEADERSHIP_TEMPLATE,
+    nonLeadershipTemplate: DEFAULT_NON_LEADERSHIP_TEMPLATE,
     saveSession: true,
   });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -97,7 +130,14 @@ export const App: React.FC = () => {
           const loadedSettings = await window.electronAPI.getSettings();
 
           setSession(loadedSession);
-          setSettings(loadedSettings);
+          if (loadedSettings) {
+            setSettings({
+              ...loadedSettings,
+              customInstructions: loadedSettings.customInstructions || DEFAULT_INSTRUCTIONS,
+              leadershipTemplate: loadedSettings.leadershipTemplate || DEFAULT_LEADERSHIP_TEMPLATE,
+              nonLeadershipTemplate: loadedSettings.nonLeadershipTemplate || DEFAULT_NON_LEADERSHIP_TEMPLATE,
+            });
+          }
 
           // Se já possuir token ativo, vai direto para o chat
           if (loadedSession.token) {
@@ -243,41 +283,67 @@ export const App: React.FC = () => {
           timestamp: new Date().toLocaleTimeString(),
           draft: response.draft
             ? { ...response.draft, type: 'performance', isPerformanceReview: true }
-            : undefined,
+            : createPerformanceDraft(rawInput),
           status: 'pending_approval',
         };
         setMessages((prev) => [...prev, assistantMsg]);
       }
     } catch (err: any) {
-      showToast('error', `Falha ao processar relato: ${err.message}`);
+      const cleanErr = cleanErrorMessage(err);
+      showToast('error', `Falha ao processar com IA: ${cleanErr}`);
+      const manualDraft = createPerformanceDraft(rawInput);
+      const assistantMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        sender: 'assistant',
+        text: `⚠️ Não foi possível estruturar o relato com IA (${cleanErr}).\n\nDisponibilizei o formulário de Registro de Performance abaixo com o seu texto para que você possa preencher o título, competências e concluir o registro manualmente:`,
+        timestamp: new Date().toLocaleTimeString(),
+        draft: manualDraft,
+        status: 'pending_approval',
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
     } finally {
       setIsAiThinking(false);
     }
   };
 
-  // Refinar um Registro Livre com IA para transformá-lo em Registro de Performance
+  // Refinar um Registro Livre com IA preservando estritamente o modo e tipo Livre
   const handleRefineWithAi = async (draft: LogbookDraft) => {
     setIsAiThinking(true);
-    setActiveMode('performance');
+    // NÃO alternar activeMode: a escolha do usuário por Registro Livre DEVE ser sempre preservada.
 
     const promptText = draft.content || draft.rawInput;
     try {
       if (window.electronAPI) {
         const response = await window.electronAPI.processRelato(promptText, messages);
+        const isLivre = draft.type === 'livre';
         const assistantMsg: ChatMessage = {
           id: (Date.now() + 1).toString(),
           sender: 'assistant',
-          text: '✨ Refinei o seu relato com IA! Estruturei o texto, vinculei as competências do People Zup e preparei para a avaliação de performance:',
+          text: isLivre
+            ? '✨ Refinei o seu Registro Livre com IA! O texto foi estruturado e aprimorado mantendo o modo livre:'
+            : '✨ Refinei o seu relato com IA! Estruturei o texto, vinculei as competências do People Zup e preparei para a avaliação de performance:',
           timestamp: new Date().toLocaleTimeString(),
           draft: response.draft
-            ? { ...response.draft, type: 'performance', isPerformanceReview: true }
+            ? {
+                ...response.draft,
+                type: draft.type || 'livre',
+                isPerformanceReview: draft.type === 'performance',
+              }
             : undefined,
           status: 'pending_approval',
         };
         setMessages((prev) => [...prev, assistantMsg]);
       }
     } catch (err: any) {
-      showToast('error', `Falha ao refinar com IA: ${err.message}`);
+      const cleanErr = cleanErrorMessage(err);
+      showToast('error', `Falha ao refinar com IA: ${cleanErr}`);
+      const errorMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        sender: 'assistant',
+        text: `⚠️ Não foi possível refinar com IA (${cleanErr}). O formulário anterior permanece disponível para que você continue preenchendo manualmente.`,
+        timestamp: new Date().toLocaleTimeString(),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsAiThinking(false);
     }
@@ -299,6 +365,9 @@ export const App: React.FC = () => {
     // 1. Se já existe uma proposta em edição no chat, trata-se de um ajuste implícito contínuo
     const hasActiveDraft = messages.some((m) => !!m.draft && m.status !== 'submitted');
     if (hasActiveDraft) {
+      const activeDraft = [...messages].reverse().find((m) => !!m.draft && m.status !== 'submitted')?.draft;
+      const isLivre = activeDraft?.type === 'livre' || (activeDraft?.type !== 'performance' && activeMode === 'livre');
+
       setIsAiThinking(true);
       try {
         if (window.electronAPI) {
@@ -308,13 +377,27 @@ export const App: React.FC = () => {
             sender: 'assistant',
             text: response.message,
             timestamp: new Date().toLocaleTimeString(),
-            draft: response.draft,
+            draft: response.draft
+              ? {
+                  ...response.draft,
+                  type: isLivre ? 'livre' : 'performance',
+                  isPerformanceReview: !isLivre,
+                }
+              : undefined,
             status: 'pending_approval',
           };
           setMessages([...updatedMessages, assistantMsg]);
         }
       } catch (err: any) {
-        showToast('error', `Falha ao processar ajuste: ${err.message}`);
+        const cleanErr = cleanErrorMessage(err);
+        showToast('error', `Falha ao processar ajuste: ${cleanErr}`);
+        const errorMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          sender: 'assistant',
+          text: `⚠️ Falha ao processar ajuste com IA: ${cleanErr}. O formulário em edição permanece ativo para ajustes manuais.`,
+          timestamp: new Date().toLocaleTimeString(),
+        };
+        setMessages([...updatedMessages, errorMsg]);
       } finally {
         setIsAiThinking(false);
       }
@@ -349,13 +432,24 @@ export const App: React.FC = () => {
             timestamp: new Date().toLocaleTimeString(),
             draft: response.draft
               ? { ...response.draft, type: 'performance', isPerformanceReview: true }
-              : undefined,
+              : createPerformanceDraft(text),
             status: 'pending_approval',
           };
           setMessages([...updatedMessages, assistantMsg]);
         }
       } catch (err: any) {
-        showToast('error', `Falha ao processar relato: ${err.message}`);
+        const cleanErr = cleanErrorMessage(err);
+        showToast('error', `Falha ao processar com IA: ${cleanErr}`);
+        const manualDraft = createPerformanceDraft(text);
+        const assistantMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          sender: 'assistant',
+          text: `⚠️ Não foi possível estruturar o relato com IA (${cleanErr}).\n\nDisponibilizei o formulário de Registro de Performance abaixo para que você possa preencher o título, competências e concluir o registro manualmente:`,
+          timestamp: new Date().toLocaleTimeString(),
+          draft: manualDraft,
+          status: 'pending_approval',
+        };
+        setMessages([...updatedMessages, assistantMsg]);
       } finally {
         setIsAiThinking(false);
       }
@@ -436,6 +530,11 @@ export const App: React.FC = () => {
         onCancelLogin={handleCancelLogin}
         onLogout={handleLogout}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onNewEntry={() => {
+          setMessages([]);
+          setActiveMode(null);
+        }}
+        hasMessages={currentScreen === 'chat' && messages.length > 0}
       />
 
       {/* Screen Router */}

@@ -1,6 +1,11 @@
 import { storage } from './store';
-import { LogbookDraft, ChatMessage, FormattedBlock, CompetenceItem } from '../types';
+import { LogbookDraft, ChatMessage, FormattedBlock, CompetenceItem, AppSettings } from '../types';
 import { getAvailableCompetences } from '../data/competences';
+import {
+  DEFAULT_INSTRUCTIONS,
+  DEFAULT_LEADERSHIP_TEMPLATE,
+  DEFAULT_NON_LEADERSHIP_TEMPLATE,
+} from '../data/templates';
 
 export interface AiResponse {
   message: string;
@@ -24,19 +29,27 @@ export class AiService {
           (settings.stackspotToken && settings.stackspotToken.trim())
         ) {
           return await this.callStackSpotAi(userInput, history, settings, lastDraft);
+        } else {
+          throw new Error('Credenciais da StackSpot AI não configuradas. Preencha o Token de Acesso (PAT) ou Client ID/Secret nas Configurações.');
         }
-      } else if (provider === 'gemini' && settings.aiApiKey) {
-        return await this.callGemini(userInput, history, settings.aiApiKey, settings.aiModel, settings.customInstructions, lastDraft);
-      } else if (provider === 'openai' && settings.aiApiKey) {
-        return await this.callOpenAi(userInput, history, settings.aiApiKey, settings.aiModel, settings.customInstructions, lastDraft);
+      } else if (provider === 'gemini') {
+        if (settings.aiApiKey) {
+          return await this.callGemini(userInput, history, settings, lastDraft);
+        } else {
+          throw new Error('Chave de API do Gemini não configurada nas Configurações.');
+        }
+      } else if (provider === 'openai') {
+        if (settings.aiApiKey) {
+          return await this.callOpenAi(userInput, history, settings, lastDraft);
+        } else {
+          throw new Error('Chave de API da OpenAI não configurada nas Configurações.');
+        }
       }
+      throw new Error(`Provedor de IA desconhecido: ${provider}`);
     } catch (err: any) {
       console.error(`Erro ao consultar provedor ${provider}:`, err);
-      return this.createManualFallback(userInput, `${provider} retornou erro: ${err.message}`);
+      throw new Error(`[IA ${provider.toUpperCase()}] ${err.message}`);
     }
-
-    // Fallback manual caso nenhuma chave ou credencial esteja configurada
-    return this.createManualFallback(userInput);
   }
 
   /**
@@ -96,11 +109,11 @@ export class AiService {
   }
 
   /**
-   * Constrói o prompt completo contendo as instruções, templates disponíveis,
+   * Constrói o prompt completo contendo as instruções, templates configurados pelo usuário,
    * catálogo oficial de competências e histórico de proposta em edição.
    */
   private buildFullPrompt(
-    customInstructions: string,
+    settings: AppSettings,
     userInput: string,
     previousDraft?: LogbookDraft
   ): string {
@@ -109,24 +122,16 @@ export class AiService {
       .map((c) => `- ID ${c.id}: ${c.name}`)
       .join('\n');
 
+    const leadership = (settings.leadershipTemplate || DEFAULT_LEADERSHIP_TEMPLATE).trim();
+    const nonLeadership = (settings.nonLeadershipTemplate || DEFAULT_NON_LEADERSHIP_TEMPLATE).trim();
+
     const templatesDefinition = `
 TEMPLATES OFICIAIS DO PEOPLE ZUP:
 1. "NON_LEADERSHIP" (Não Liderança / Especialista):
-   - Seções do template:
-     * Resultado/impacto (momento atual): Cases e entregas alinhados com as expectativas da Zup.
-     * Atitude e comportamento: Contribuições para agregar valor aos clientes e ao time.
-     * Conhecimento Técnico da Prática: Tecnologias, ferramentas e metodologias aplicadas na prática.
-     * Aprendizado Tech: Aprendizados e evolução técnica na execução e estudos.
-     * Expectativas de Entregas: Combinados e expectativas alinhados com a liderança para os próximos períodos.
-     * Comentários Adicionais e Feedback Recebido: Comentários e feedbacks recebidos.
+${nonLeadership}
+
 2. "LEADERSHIP" (Liderança / Gestão):
-   - Seções do template:
-     * Resultado/impacto (momento atual): Cases e entregas da área alinhados com as expectativas da Zup.
-     * Atitude e comportamento: Como atitudes e comportamentos agregam valor a clientes e ao sucesso da área/time.
-     * Conhecimento Técnico da Prática: Tecnologias e metodologias aplicadas como liderança e incentivo ao time.
-     * Aprendizado Tech: Aprendizados e evolução técnica como liderança e incentivo ao time.
-     * Expectativas de Entregas: Combinados e expectativas de entregas alinhados com o time.
-     * Comentários Adicionais e Feedback Recebido: Comentários e feedbacks recebidos.
+${leadership}
 `;
 
     const contextPrompt = previousDraft
@@ -145,8 +150,10 @@ TEMPLATES OFICIAIS DO PEOPLE ZUP:
         `\n\nATENÇÃO: O usuário está enviando uma instrução de ajuste, correção ou complemento para a proposta acima.`
       : '';
 
+    const instructions = (settings.customInstructions || DEFAULT_INSTRUCTIONS).trim();
+
     return `
-${customInstructions || 'Você é o assistente inteligente de Diário de Bordo da Zup.'}
+${instructions}
 
 ${templatesDefinition}
 
@@ -175,30 +182,6 @@ ${contextPrompt}
 `;
   }
 
-  /**
-   * Fallback quando não há conexão com IA ou quando ocorre falha:
-   * Sem título, sem competências calculadas e com o texto bruto inserido no conteúdo.
-   */
-  public createManualFallback(userInput: string, errorMessage?: string): AiResponse {
-    const message = errorMessage
-      ? `⚠️ Não foi possível obter sugestão da IA (${errorMessage}). O seu relato foi mantido abaixo no Conteúdo para que você preencha manualmente o título, competências ou faça ajustes:`
-      : `ℹ️ Nenhuma IA configurada ou conectada. O seu relato foi inserido no Conteúdo para que você faça o registro manualmente:`;
-
-    return {
-      message,
-      draft: {
-        title: '',
-        blocks: [],
-        content: userInput,
-        templateFor: 'NON_LEADERSHIP',
-        isPerformanceReview: true,
-        competences: [],
-        hours: 8,
-        rawInput: userInput,
-        type: 'livre',
-      },
-    };
-  }
 
   /**
    * Executa chamada à API da StackSpot AI
@@ -210,7 +193,7 @@ ${contextPrompt}
     previousDraft?: LogbookDraft
   ): Promise<AiResponse> {
     const accessToken = await this.getStackSpotAccessToken(settings);
-    const systemPrompt = this.buildFullPrompt(settings.customInstructions, userInput, previousDraft);
+    const systemPrompt = this.buildFullPrompt(settings, userInput, previousDraft);
 
     // Se houver um Quick Command configurado, disparar via Quick Command
     if (settings.stackspotSlug) {
@@ -274,8 +257,18 @@ ${contextPrompt}
     previousDraft?: LogbookDraft
   ): AiResponse {
     try {
-      const cleanJson = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const parsed = JSON.parse(cleanJson);
+      let jsonStr = rawText.trim();
+      const codeBlockMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (codeBlockMatch) {
+        jsonStr = codeBlockMatch[1].trim();
+      } else {
+        const braceMatch = rawText.match(/(\{[\s\S]*\})/);
+        if (braceMatch) {
+          jsonStr = braceMatch[1].trim();
+        }
+      }
+
+      const parsed = JSON.parse(jsonStr);
 
       const blocks: FormattedBlock[] = Array.isArray(parsed.blocks) && parsed.blocks.length > 0
         ? parsed.blocks
@@ -316,9 +309,18 @@ ${contextPrompt}
         selectedCompetences.push(...previousDraft.competences);
       }
 
-      const plainContent = blocks.length > 0
-        ? blocks.map((b) => `${b.title}\n${b.description}`).join('\n\n')
-        : userInput;
+      let plainContent = '';
+      if (blocks.length > 0) {
+        plainContent = blocks.map((b) => `${b.title}\n${b.description}`).join('\n\n');
+      } else if (parsed.content && typeof parsed.content === 'string') {
+        plainContent = parsed.content.trim();
+      } else if (parsed.refinedText && typeof parsed.refinedText === 'string') {
+        plainContent = parsed.refinedText.trim();
+      } else if (previousDraft?.content) {
+        plainContent = previousDraft.content;
+      } else {
+        plainContent = userInput;
+      }
 
       return {
         message:
@@ -338,22 +340,20 @@ ${contextPrompt}
         },
       };
     } catch (err: any) {
-      console.warn('Falha no parse do retorno da LLM:', err);
-      return this.createManualFallback(userInput, 'A IA retornou um formato inesperado');
+      console.error('Falha no parse do retorno da LLM:', err, 'Texto bruto retornado:', rawText);
+      throw new Error(`A resposta da IA não pôde ser interpretada ou veio em formato inesperado: ${err.message}`);
     }
   }
 
   private async callGemini(
     userInput: string,
     history: ChatMessage[],
-    apiKey: string,
-    model: string,
-    customInstructions: string,
+    settings: AppSettings,
     previousDraft?: LogbookDraft
   ): Promise<AiResponse> {
-    const systemInstruction = this.buildFullPrompt(customInstructions, userInput, previousDraft);
+    const systemInstruction = this.buildFullPrompt(settings, userInput, previousDraft);
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${settings.aiModel}:generateContent?key=${settings.aiApiKey}`;
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -373,18 +373,16 @@ ${contextPrompt}
   private async callOpenAi(
     userInput: string,
     history: ChatMessage[],
-    apiKey: string,
-    model: string,
-    customInstructions: string,
+    settings: AppSettings,
     previousDraft?: LogbookDraft
   ): Promise<AiResponse> {
-    const systemPrompt = this.buildFullPrompt(customInstructions, userInput, previousDraft);
+    const systemPrompt = this.buildFullPrompt(settings, userInput, previousDraft);
 
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.aiApiKey}` },
       body: JSON.stringify({
-        model: model || 'gpt-4o-mini',
+        model: settings.aiModel || 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userInput },

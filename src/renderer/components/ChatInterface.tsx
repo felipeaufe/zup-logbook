@@ -4,10 +4,7 @@ import { ProposalCard } from './ProposalCard';
 import {
   SendHorizontal,
   Sparkles,
-  Bot,
-  User,
   Loader2,
-  RotateCcw,
   Target,
   FileText,
 } from 'lucide-react';
@@ -75,111 +72,76 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0F1017]">
-      {/* Top action toolbar */}
-      <div className="h-11 border-b border-[#1E212D] bg-[#12141D] px-6 flex items-center justify-between text-sm text-gray-400">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-orange-400" />
-          <span>Agente Diário de Bordo pronto</span>
-        </div>
-        {messages.length > 0 && (
-          <button
-            onClick={onResetChat}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-lg hover:bg-[#1A1D29] text-gray-300 hover:text-white transition-colors cursor-pointer text-sm font-medium"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>Novo Registro</span>
-          </button>
-        )}
-      </div>
-
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0F1017] relative">
       {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center max-w-xl mx-auto py-10">
-            <div className="w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400 mb-4 shadow-inner">
-              <Bot className="w-8 h-8" />
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Como deseja registrar seu dia?</h2>
-            <p className="text-base text-gray-300 mb-6 max-w-md">
-              Escolha uma das opções abaixo para iniciar ou digite diretamente seu relato no campo de texto:
-            </p>
-
-            {/* 2 Options Cards */}
-            <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
-              <button
-                type="button"
-                onClick={() => onSelectInitialMode('performance')}
-                className="p-5 rounded-2xl bg-gradient-to-br from-[#1A1D2B] to-[#141624] hover:from-[#212638] hover:to-[#191D2E] border border-orange-500/30 hover:border-orange-500 hover:shadow-lg hover:shadow-orange-500/15 transition-all text-left flex flex-col justify-between group cursor-pointer"
-              >
-                <div>
-                  <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-400 flex items-center justify-center mb-3">
-                    <Target className="w-5 h-5" />
-                  </div>
-                  <h3 className="font-bold text-base text-white mb-1 group-hover:text-orange-300 transition-colors">
-                    Registro de Performance
-                  </h3>
-                  <p className="text-sm text-gray-300 leading-relaxed">
-                    Estruturado com inteligência, seleção de competências oficiais do People Zup e avaliação de ciclo.
-                  </p>
-                </div>
-                <span className="text-sm text-orange-400 font-semibold mt-4 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                  Fazer registro de performance →
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onSelectInitialMode('livre')}
-                className="p-5 rounded-2xl bg-gradient-to-br from-[#1A1D2B] to-[#141624] hover:from-[#1E2436] hover:to-[#171B2A] border border-blue-500/30 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/15 transition-all text-left flex flex-col justify-between group cursor-pointer"
-              >
-                <div>
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center mb-3">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <h3 className="font-bold text-base text-white mb-1 group-hover:text-blue-300 transition-colors">
-                    Registro Livre
-                  </h3>
-                  <p className="text-sm text-gray-300 leading-relaxed">
-                    Envio rápido do texto bruto com título sugerido. Você pode refinar com IA quando achar necessário.
-                  </p>
-                </div>
-                <span className="text-sm text-blue-400 font-semibold mt-4 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                  Fazer registro livre →
-                </span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex items-start gap-3.5 ${
-                msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'
-              }`}
-            >
-              {/* Avatar */}
-              <div
-                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white text-sm ${
-                  msg.sender === 'user'
-                    ? 'bg-gradient-to-tr from-blue-600 to-indigo-600'
-                    : 'bg-gradient-to-tr from-orange-600 to-amber-500'
-                }`}
-              >
-                {msg.sender === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-28">
+        <div className="max-w-4xl mx-auto w-full space-y-6">
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-center max-w-xl mx-auto py-12">
+              <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 mb-4 shadow-inner">
+                <Sparkles className="w-8 h-8" />
               </div>
+              <h2 className="text-2xl font-bold text-white mb-2">Como deseja registrar seu dia?</h2>
+              <p className="text-base text-gray-300 mb-6 max-w-md">
+                Escolha uma das opções abaixo para iniciar ou digite diretamente seu relato no campo de texto:
+              </p>
 
-              {/* Message Bubble & Content */}
-              <div
-                className={`flex flex-col space-y-3 max-w-3xl ${
-                  msg.sender === 'user' ? 'items-end' : 'items-start'
-                }`}
-              >
+              {/* 2 Options Cards */}
+              <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
+                <button
+                  type="button"
+                  onClick={() => onSelectInitialMode('performance')}
+                  className="p-5 rounded-2xl bg-gradient-to-br from-[#1A1D2B] to-[#141624] hover:from-[#212638] hover:to-[#191D2E] border border-purple-500/30 hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/15 transition-all text-left flex flex-col justify-between group cursor-pointer h-full"
+                >
+                  <div className="flex-1 flex flex-col">
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center mb-3 shrink-0">
+                      <Target className="w-5 h-5" />
+                    </div>
+                    <h3 className="font-bold text-base text-white mb-2 group-hover:text-purple-300 transition-colors">
+                      Registro de Performance
+                    </h3>
+                    <p className="text-sm text-gray-300 leading-relaxed flex-1">
+                      Estruturado com inteligência, seleção de competências oficiais do People Zup e avaliação de ciclo.
+                    </p>
+                  </div>
+                  <div className="text-sm text-purple-400 font-semibold pt-4 flex items-center justify-between group-hover:translate-x-0.5 transition-transform border-t border-white/5 mt-4">
+                    <span>Iniciar registro</span>
+                    <span className="text-base">→</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onSelectInitialMode('livre')}
+                  className="p-5 rounded-2xl bg-gradient-to-br from-[#1A1D2B] to-[#141624] hover:from-[#1E2436] hover:to-[#171B2A] border border-blue-500/30 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/15 transition-all text-left flex flex-col justify-between group cursor-pointer h-full"
+                >
+                  <div className="flex-1 flex flex-col">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center mb-3 shrink-0">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <h3 className="font-bold text-base text-white mb-2 group-hover:text-blue-300 transition-colors">
+                      Registro Livre
+                    </h3>
+                    <p className="text-sm text-gray-300 leading-relaxed flex-1">
+                      Envio rápido do texto bruto com título sugerido. Você pode refinar com IA quando achar necessário.
+                    </p>
+                  </div>
+                  <div className="text-sm text-blue-400 font-semibold pt-4 flex items-center justify-between group-hover:translate-x-0.5 transition-transform border-t border-white/5 mt-4">
+                    <span>Iniciar registro</span>
+                    <span className="text-base">→</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+          ) : (
+            messages.map((msg) => (
+              <div key={msg.id} className="w-full flex flex-col space-y-3">
+                {/* Message Bubble & Content - 100% width */}
                 <div
-                  className={`px-4 py-3 rounded-2xl text-base leading-relaxed ${
+                  className={`w-full text-base leading-relaxed ${
                     msg.sender === 'user'
-                      ? 'bg-[#181A26] border border-orange-500/60 text-gray-100 rounded-tr-none shadow-md shadow-orange-500/10'
-                      : 'bg-[#181A26] border border-[#262A3B] text-gray-200 rounded-tl-none'
+                      ? 'bg-[#1A1D2B] border border-[#2D334A] text-gray-100 rounded-2xl px-5 py-4 shadow-sm'
+                      : 'bg-transparent text-gray-200 px-1 py-2'
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{msg.text}</p>
@@ -187,7 +149,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
                 {/* Se a mensagem tiver botões de escolha de tipo de registro */}
                 {msg.promptChoices && msg.promptChoices.length > 0 && (
-                  <div className="flex flex-col sm:flex-row gap-2.5 pt-1 w-full">
+                  <div className="flex flex-col sm:flex-row gap-3 pt-1 w-full">
                     {msg.promptChoices.map((choice) => (
                       <button
                         key={choice.type}
@@ -195,7 +157,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         onClick={() => onSelectChoice(choice.type, msg.pendingRawInput || '')}
                         className={`flex-1 p-4 rounded-xl border transition-all text-left cursor-pointer group ${
                           choice.type === 'performance'
-                            ? 'bg-gradient-to-br from-[#1E2235] to-[#181B2A] border-orange-500/40 hover:border-orange-500 hover:shadow-lg hover:shadow-orange-500/20'
+                            ? 'bg-gradient-to-br from-[#1E2235] to-[#181B2A] border-purple-500/40 hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/20'
                             : 'bg-gradient-to-br from-[#1E2235] to-[#181B2A] border-blue-500/40 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/20'
                         }`}
                       >
@@ -216,44 +178,42 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
                 {/* If there's an attached proposal draft */}
                 {msg.draft && (
-                  <ProposalCard
-                    draft={msg.draft}
-                    isSubmitting={isSubmitting}
-                    onApprove={onApproveDraft}
-                    onRefineWithAi={onRefineWithAi}
-                    status={msg.status}
-                    availableCompetences={availableCompetences}
-                  />
+                  <div className="w-full pt-1">
+                    <ProposalCard
+                      draft={msg.draft}
+                      isSubmitting={isSubmitting}
+                      onApprove={onApproveDraft}
+                      onRefineWithAi={onRefineWithAi}
+                      status={msg.status}
+                      availableCompetences={availableCompetences}
+                    />
+                  </div>
                 )}
               </div>
-            </div>
-          ))
-        )}
+            ))
+          )}
 
-        {/* AI is thinking indicator */}
-        {isAiThinking && (
-          <div className="flex items-start gap-3.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 flex items-center justify-center text-white shrink-0">
-              <Bot className="w-5 h-5" />
-            </div>
-            <div className="bg-[#181A26] border border-[#262A3B] rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-3">
-              <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />
-              <span className="text-sm text-gray-200">
+          {/* AI is thinking indicator */}
+          {isAiThinking && (
+            <div className="w-full flex items-center gap-3 px-1 py-2 text-gray-300">
+              <Loader2 className="w-5 h-5 text-purple-400 animate-spin shrink-0" />
+              <span className="text-sm text-gray-300">
                 Lendo seu relato e aplicando as regras do diário de bordo...
               </span>
             </div>
-          </div>
-        )}
+          )}
 
-        <div ref={messagesEndRef} />
+          <div className="h-44 shrink-0" aria-hidden="true" />
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      {/* Input Area */}
-      <div className="p-4 border-t border-[#1F2230] bg-[#12141D]">
-        <div className="max-w-4xl mx-auto">
+      {/* Floating Input Area with seamless gradient fade-out */}
+      <div className="absolute bottom-0 inset-x-0 pointer-events-none bg-gradient-to-t from-[#0F1017] via-[#0F1017]/95 via-40% to-transparent pt-24 pb-6 px-4 z-10">
+        <div className="max-w-4xl mx-auto pointer-events-auto">
           <form
             onSubmit={handleSubmit}
-            className="flex items-end gap-2.5 bg-[#181A26] border border-[#2B2F44] focus-within:border-orange-500/70 rounded-2xl p-3 transition-colors shadow-lg"
+            className="flex items-center gap-2.5 bg-[#1F2232] border border-[#3A405A] focus-within:border-purple-500 rounded-2xl p-2 pl-4 transition-colors shadow-2xl shadow-black/80"
           >
             <textarea
               ref={textareaRef}
@@ -263,25 +223,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               onKeyDown={handleKeyDown}
               placeholder={
                 messages.some((m) => !!m.draft && m.status !== 'submitted')
-                  ? 'Digite ajustes para a proposta acima ou novas informações... (Enter para enviar)'
-                  : 'Descreva o que você realizou hoje... (Pressione Enter para enviar, Shift+Enter para nova linha)'
+                  ? 'Digite ajustes para a proposta acima ou novas informações...'
+                  : 'Descreva o que você realizou hoje...'
               }
               disabled={isAiThinking || isSubmitting}
-              className="flex-1 bg-transparent border-0 text-base text-white placeholder-gray-500 focus:outline-none resize-none px-2 py-1 max-h-40 leading-relaxed disabled:opacity-50"
+              className="flex-1 bg-transparent border-0 text-base text-gray-100 placeholder-gray-400 focus:outline-none resize-none py-1.5 max-h-40 leading-normal disabled:text-gray-400 my-auto"
             />
             <button
               type="submit"
               disabled={!inputText.trim() || isAiThinking || isSubmitting}
-              className="p-3 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:hover:bg-orange-500 text-white transition-all shadow-md shadow-orange-500/20 shrink-0 cursor-pointer"
+              className="p-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/30 disabled:text-white/50 text-white transition-all shadow-md shadow-purple-600/20 shrink-0 cursor-pointer self-center"
               title="Enviar relato (Enter)"
             >
               <SendHorizontal className="w-5 h-5" />
             </button>
           </form>
-
-          <p className="text-sm text-gray-400 text-center mt-2.5">
-            Pressione <kbd className="bg-[#1C1F2E] px-2 py-0.5 rounded text-gray-300 border border-gray-700 text-sm">Enter</kbd> para enviar ou <kbd className="bg-[#1C1F2E] px-2 py-0.5 rounded text-gray-300 border border-gray-700 text-sm">Shift + Enter</kbd> para pular linha
-          </p>
         </div>
       </div>
     </div>

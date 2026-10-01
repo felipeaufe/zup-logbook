@@ -1,6 +1,6 @@
 import React from 'react';
 import { AuthSession } from '../../types';
-import { Settings, LogOut, LogIn, BookOpen, ShieldCheck, ShieldAlert, X, Loader2 } from 'lucide-react';
+import { Settings, LogOut, LogIn, BookOpen, ShieldCheck, ShieldAlert, X, Loader2, RotateCcw } from 'lucide-react';
 
 interface HeaderProps {
   session: AuthSession;
@@ -9,6 +9,8 @@ interface HeaderProps {
   onCancelLogin?: () => void;
   onLogout: () => void;
   onOpenSettings: () => void;
+  onNewEntry?: () => void;
+  hasMessages?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,6 +20,8 @@ export const Header: React.FC<HeaderProps> = ({
   onCancelLogin,
   onLogout,
   onOpenSettings,
+  onNewEntry,
+  hasMessages = false,
 }) => {
   const isAuthenticated = Boolean(session.token);
 
@@ -36,15 +40,12 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="h-16 border-b border-[#222530] bg-[#12141C]/90 backdrop-blur-md px-6 flex items-center justify-between shrink-0 select-none z-40">
       {/* Brand logo & title */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/20">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
           <BookOpen className="w-5 h-5 text-white" />
         </div>
         <div>
           <div className="flex items-center gap-2">
             <h1 className="font-bold text-lg tracking-tight text-white">Zup Logbook</h1>
-            <span className="px-2.5 py-0.5 text-sm font-semibold tracking-wide uppercase bg-orange-500/10 text-orange-400 rounded-full border border-orange-500/20">
-              StackSpot AI
-            </span>
           </div>
           <p className="text-sm text-gray-400">Automatizador de Diário de Bordo</p>
         </div>
@@ -84,6 +85,17 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Buttons */}
+        {hasMessages && onNewEntry && (
+          <button
+            onClick={onNewEntry}
+            title="Iniciar um novo registro do diário de bordo"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1B1E2B] border border-[#2D3246] hover:border-purple-500/50 text-gray-200 hover:text-white text-sm font-medium transition-colors cursor-pointer"
+          >
+            <RotateCcw className="w-4 h-4 text-purple-400" />
+            <span>Novo Registro</span>
+          </button>
+        )}
+
         {isAuthenticated ? (
           <button
             onClick={onLogout}
@@ -106,7 +118,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onOpenLogin}
             title="Conectar ao People Zup"
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium shadow-md shadow-orange-500/20 transition-all hover:scale-[1.02] cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium shadow-md shadow-purple-600/20 transition-all hover:scale-[1.02] cursor-pointer"
           >
             <LogIn className="w-4 h-4" />
             <span>Entrar no People</span>

@@ -7,20 +7,23 @@ export default {
   theme: {
     extend: {
       fontSize: {
-        '2xs': ['14px', { lineHeight: '20px' }],
-        'xs': ['14px', { lineHeight: '20px' }],
-        'sm': ['14px', { lineHeight: '20px' }],
-        'base': ['16px', { lineHeight: '24px' }],
+        '2xs': ['12px', { lineHeight: '16px' }],
+        'xs': ['13px', { lineHeight: '18px' }],
+        'sm': ['13px', { lineHeight: '18px' }],
+        'base': ['14px', { lineHeight: '21px' }],
       },
       colors: {
         zup: {
-          50: '#f0fdf4',
-          100: '#dcfce7',
-          500: '#10b981',
-          600: '#059669',
-          700: '#047857',
-          brand: '#FF6B00', // Iconic orange / tech tone
-          brandDark: '#E05300',
+          50: '#fbf7ff',
+          100: '#f4edff',
+          200: '#eadaff',
+          300: '#d7baff',
+          400: '#be8cff',
+          500: '#9b51e0',
+          600: '#7c3aed',
+          700: '#6d28d9',
+          brand: '#7c3aed', // Primary Zup Purple
+          brandDark: '#6d28d9',
           dark: '#121316',
           card: '#1A1C23',
           border: '#2A2D3A',

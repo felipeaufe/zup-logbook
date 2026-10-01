@@ -40,6 +40,7 @@ function createWindow() {
     minHeight: 650,
     backgroundColor: '#0D0E12',
     title: 'Zup Logbook - Diário de Bordo Inteligente',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: getPreloadPath(),
       nodeIntegration: false,
@@ -47,6 +48,8 @@ function createWindow() {
       sandbox: false,
     },
   });
+
+  mainWindow.removeMenu();
 
   // Intercepta qualquer window.open e força abertura na MESMA janela via BrowserView
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

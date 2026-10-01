@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { AppSettings, AuthSession } from '../../types';
-import { X, Key, Globe, Sparkles, Shield, Save, Eye, EyeOff, Check, Copy, RefreshCw, AlertCircle } from 'lucide-react';
+import { X, Key, Globe, Sparkles, Shield, Save, Eye, EyeOff, Check, Copy, RefreshCw, AlertCircle, RotateCcw } from 'lucide-react';
+import {
+  DEFAULT_INSTRUCTIONS,
+  DEFAULT_LEADERSHIP_TEMPLATE,
+  DEFAULT_NON_LEADERSHIP_TEMPLATE,
+} from '../../data/templates';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -52,6 +57,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const handleResetRulesToDefault = () => {
+    setFormData((prev) => ({
+      ...prev,
+      customInstructions: DEFAULT_INSTRUCTIONS,
+      leadershipTemplate: DEFAULT_LEADERSHIP_TEMPLATE,
+      nonLeadershipTemplate: DEFAULT_NON_LEADERSHIP_TEMPLATE,
+    }));
+  };
+
   const isTokenExpired = session.expiresAt
     ? Date.now() > new Date(session.expiresAt).getTime()
     : false;
@@ -62,7 +76,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-[#242738] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400">
+            <div className="w-9 h-9 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
@@ -84,7 +98,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             onClick={() => setActiveTab('ai')}
             className={`py-3.5 px-4 text-sm font-semibold border-b-2 flex items-center gap-2 transition-colors ${
               activeTab === 'ai'
-                ? 'border-orange-500 text-orange-400'
+                ? 'border-purple-500 text-purple-400'
                 : 'border-transparent text-gray-400 hover:text-gray-200'
             }`}
           >
@@ -95,7 +109,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             onClick={() => setActiveTab('people')}
             className={`py-3.5 px-4 text-sm font-semibold border-b-2 flex items-center gap-2 transition-colors ${
               activeTab === 'people'
-                ? 'border-orange-500 text-orange-400'
+                ? 'border-purple-500 text-purple-400'
                 : 'border-transparent text-gray-400 hover:text-gray-200'
             }`}
           >
@@ -106,7 +120,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             onClick={() => setActiveTab('rules')}
             className={`py-3.5 px-4 text-sm font-semibold border-b-2 flex items-center gap-2 transition-colors ${
               activeTab === 'rules'
-                ? 'border-orange-500 text-orange-400'
+                ? 'border-purple-500 text-purple-400'
                 : 'border-transparent text-gray-400 hover:text-gray-200'
             }`}
           >
@@ -126,7 +140,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <select
                   value={formData.aiProvider}
                   onChange={(e) => setFormData({ ...formData, aiProvider: e.target.value as any })}
-                  className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-orange-500"
+                  className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-purple-500"
                 >
                   <option value="stackspot">StackSpot AI (Oficial Zup)</option>
                   <option value="gemini">Google Gemini (Alternativa)</option>
@@ -136,18 +150,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               {formData.aiProvider === 'stackspot' && (
                 <div className="space-y-3.5 p-4 rounded-xl bg-[#171924] border border-[#262A3B]">
-                  <div className="flex items-center gap-2 text-sm font-bold text-orange-400">
+                  <div className="flex items-center gap-2 text-sm font-bold text-purple-400">
                     <Sparkles className="w-4 h-4" />
                     <span>Configuração StackSpot AI</span>
                   </div>
 
                   {/* Personal Access Token (PAT) */}
-                  <div className="p-3.5 bg-[#13151F] border border-orange-500/30 rounded-xl space-y-2">
+                  <div className="p-3.5 bg-[#13151F] border border-purple-500/30 rounded-xl space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="block text-sm font-semibold text-orange-300">
+                      <label className="block text-sm font-semibold text-purple-300">
                         Personal Access Token (PAT) - Recomendado
                       </label>
-                      <span className="text-sm px-2.5 py-0.5 rounded bg-orange-500/20 text-orange-300 font-medium">
+                      <span className="text-sm px-2.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-medium">
                         Direto sem OAuth2
                       </span>
                     </div>
@@ -159,7 +173,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       placeholder="Cole aqui seu PAT (Bearer eyJhbGci...)"
                       value={formData.stackspotToken || ''}
                       onChange={(e) => setFormData({ ...formData, stackspotToken: e.target.value })}
-                      className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-orange-500 font-mono"
+                      className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-purple-500 font-mono"
                     />
                   </div>
 
@@ -176,7 +190,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       onChange={(e) =>
                         setFormData({ ...formData, stackspotClientId: e.target.value })
                       }
-                      className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-orange-500 font-mono"
+                      className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-purple-500 font-mono"
                     />
                   </div>
 
@@ -190,7 +204,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         onChange={(e) =>
                           setFormData({ ...formData, stackspotClientSecret: e.target.value })
                         }
-                        className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 pr-10 text-base text-white focus:outline-none focus:border-orange-500 font-mono"
+                        className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 pr-10 text-base text-white focus:outline-none focus:border-purple-500 font-mono"
                       />
                       <button
                         type="button"
@@ -202,31 +216,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm text-gray-300 mb-1">Realm</label>
-                      <input
-                        type="text"
-                        placeholder="zup"
-                        value={formData.stackspotRealm || 'zup'}
-                        onChange={(e) =>
-                          setFormData({ ...formData, stackspotRealm: e.target.value })
-                        }
-                        className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-orange-500 font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-300 mb-1">Quick Command Slug (Opcional)</label>
-                      <input
-                        type="text"
-                        placeholder="diario-de-bordo"
-                        value={formData.stackspotSlug || ''}
-                        onChange={(e) =>
-                          setFormData({ ...formData, stackspotSlug: e.target.value })
-                        }
-                        className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-orange-500 font-mono"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-sm text-gray-300 mb-1">Realm</label>
+                    <input
+                      type="text"
+                      placeholder="zup"
+                      value={formData.stackspotRealm || 'zup'}
+                      onChange={(e) =>
+                        setFormData({ ...formData, stackspotRealm: e.target.value })
+                      }
+                      className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-purple-500 font-mono"
+                    />
                   </div>
                 </div>
               )}
@@ -239,7 +239,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       type={showApiKey ? 'text' : 'password'}
                       value={formData.aiApiKey}
                       onChange={(e) => setFormData({ ...formData, aiApiKey: e.target.value })}
-                      className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 pr-10 text-base text-white focus:outline-none focus:border-orange-500 font-mono"
+                      className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 pr-10 text-base text-white focus:outline-none focus:border-purple-500 font-mono"
                     />
                     <button
                       type="button"
@@ -265,7 +265,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   value={formData.logbookEndpoint}
                   onChange={(e) => setFormData({ ...formData, logbookEndpoint: e.target.value })}
                   placeholder="https://apiznt.zenity.zup.com.br/dune/v1/entry"
-                  className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-orange-500 font-mono"
+                  className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-purple-500 font-mono"
                 />
               </div>
 
@@ -285,7 +285,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <button
                       type="button"
                       onClick={handleCopyToken}
-                      className="text-sm text-orange-400 hover:text-orange-300 flex items-center gap-1 font-medium"
+                      className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1 font-medium"
                     >
                       {copiedToken ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                       <span>{copiedToken ? 'Copiado!' : 'Copiar JWT'}</span>
@@ -323,23 +323,71 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   value={manualToken}
                   onChange={(e) => setManualToken(e.target.value)}
                   placeholder="Bearer eyJhbGciOi..."
-                  className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-sm text-gray-300 focus:outline-none focus:border-orange-500 font-mono"
+                  className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-sm text-gray-300 focus:outline-none focus:border-purple-500 font-mono"
                 />
               </div>
             </div>
           )}
 
           {activeTab === 'rules' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
+              <div className="flex items-center justify-between pb-2 border-b border-[#242738]">
+                <div>
+                  <h3 className="text-base font-bold text-white">Instruções & Templates da IA</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Personalize as diretrizes e a estrutura dos templates que a IA utilizará para organizar os relatos.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetRulesToDefault}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#33384D] bg-[#1C1F2E] hover:bg-[#252A3D] text-xs font-semibold text-gray-300 hover:text-white transition-all cursor-pointer shadow-sm hover:border-purple-500/40"
+                  title="Restaurar as instruções e os templates para os padrões originais definidos pelo sistema"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Redefinir Padrão</span>
+                </button>
+              </div>
+
+              {/* Bloco 1: Instruções do diário de bordo */}
               <div>
                 <label className="block text-sm font-semibold text-gray-300 mb-1.5">
-                  Instruções e Regras de Negócio para o Diário de Bordo
+                  Instruções do diário de bordo
+                </label>
+                <textarea
+                  rows={6}
+                  value={formData.customInstructions}
+                  onChange={(e) => setFormData({ ...formData, customInstructions: e.target.value })}
+                  placeholder="Instruções gerais para a IA..."
+                  className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl p-3.5 text-sm text-gray-200 focus:outline-none focus:border-purple-500 leading-relaxed font-mono"
+                />
+              </div>
+
+              {/* Bloco 2: Template de Liderança */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1.5">
+                  Template de Liderança
                 </label>
                 <textarea
                   rows={8}
-                  value={formData.customInstructions}
-                  onChange={(e) => setFormData({ ...formData, customInstructions: e.target.value })}
-                  className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl p-3.5 text-base text-gray-200 focus:outline-none focus:border-orange-500 leading-relaxed font-mono"
+                  value={formData.leadershipTemplate || ''}
+                  onChange={(e) => setFormData({ ...formData, leadershipTemplate: e.target.value })}
+                  placeholder="Seções e instruções do template de liderança..."
+                  className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl p-3.5 text-sm text-gray-200 focus:outline-none focus:border-purple-500 leading-relaxed font-mono"
+                />
+              </div>
+
+              {/* Bloco 3: Template de não liderança */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1.5">
+                  Template de não liderança
+                </label>
+                <textarea
+                  rows={8}
+                  value={formData.nonLeadershipTemplate || ''}
+                  onChange={(e) => setFormData({ ...formData, nonLeadershipTemplate: e.target.value })}
+                  placeholder="Seções e instruções do template de não liderança..."
+                  className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl p-3.5 text-sm text-gray-200 focus:outline-none focus:border-purple-500 leading-relaxed font-mono"
                 />
               </div>
             </div>
@@ -356,7 +404,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </button>
             <button
               type="submit"
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-base font-semibold shadow-md shadow-orange-500/20 transition-all cursor-pointer"
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-base font-semibold shadow-md shadow-purple-600/20 transition-all cursor-pointer"
             >
               <Save className="w-4 h-4" />
               <span>Salvar Configurações</span>

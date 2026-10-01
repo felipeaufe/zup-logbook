@@ -97,13 +97,13 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
   };
 
   return (
-    <div className="w-full max-w-2xl bg-[#161822] border border-[#262A3B] rounded-2xl p-5 shadow-xl transition-all">
+    <div className="w-full bg-[#161822] border border-[#262A3B] rounded-2xl p-5 shadow-xl transition-all">
       {/* Header banner */}
       <div className="flex items-center justify-between border-b border-[#242738] pb-4 mb-4">
         <div className="flex items-center gap-2.5">
           <span
             className={`w-2.5 h-2.5 rounded-full animate-pulse ${
-              current.type === 'livre' ? 'bg-blue-400' : 'bg-orange-400'
+              current.type === 'livre' ? 'bg-blue-400' : 'bg-purple-400'
             }`}
           ></span>
           <h3 className="font-semibold text-white text-base">
@@ -121,7 +121,7 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
             <button
               onClick={() => onRefineWithAi(current)}
               disabled={isSubmitting || status === 'submitted'}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-md shadow-orange-500/20 transition-all cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md shadow-purple-600/20 transition-all cursor-pointer disabled:opacity-50"
               title="Estruturar com IA e selecionar competências oficiais"
             >
               <Sparkles className="w-4 h-4" />
@@ -142,31 +142,12 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
 
       {/* Main card body */}
       <div className="space-y-4">
-        {/* Banner para Registro Livre */}
-        {current.type === 'livre' && (
-          <div className="p-3.5 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-between text-sm text-blue-300">
-            <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-blue-400 shrink-0" />
-              <span>Amostra de texto bruto. Você pode enviar diretamente ou refinar com IA.</span>
-            </div>
-            {onRefineWithAi && (
-              <button
-                type="button"
-                onClick={() => onRefineWithAi(current)}
-                className="underline font-semibold hover:text-white shrink-0 ml-2 cursor-pointer text-sm"
-              >
-                Refinar agora
-              </button>
-            )}
-          </div>
-        )}
-
         {/* Modelo de Template - Seletor Lúdico Acima do Título */}
         {current.type !== 'livre' && (
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-semibold tracking-wider text-gray-300 uppercase flex items-center gap-1.5">
-                <Briefcase className="w-4 h-4 text-orange-400" />
+                <Briefcase className="w-4 h-4 text-purple-400" />
                 <span>Modelo de Template</span>
               </label>
               <span className="text-sm text-gray-400">
@@ -182,14 +163,14 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
                 onClick={() => handleSelectTemplate('NON_LEADERSHIP')}
                 className={`relative flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all cursor-pointer group ${
                   current.templateFor === 'NON_LEADERSHIP'
-                    ? 'bg-gradient-to-r from-orange-500/15 to-amber-500/10 border-orange-500/50 shadow-sm shadow-orange-500/10 ring-1 ring-orange-500/30'
+                    ? 'bg-gradient-to-r from-purple-600/15 to-indigo-600/10 border-purple-500/50 shadow-sm shadow-purple-500/10 ring-1 ring-purple-500/30'
                     : 'bg-[#141622] hover:bg-[#1A1D2D] border-[#25283A] text-gray-400 hover:text-gray-200'
                 }`}
               >
                 <div
                   className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-all ${
                     current.templateFor === 'NON_LEADERSHIP'
-                      ? 'bg-orange-500 text-white shadow-md shadow-orange-500/30 scale-105'
+                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 scale-105'
                       : 'bg-[#1E2235] text-gray-400 group-hover:text-gray-200'
                   }`}
                 >
@@ -205,7 +186,7 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
                       Não Liderança
                     </span>
                     {current.templateFor === 'NON_LEADERSHIP' && (
-                      <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+                      <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
                     )}
                   </div>
                   <p className="text-sm text-gray-400 leading-tight mt-0.5 truncate">
@@ -259,7 +240,7 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
         {/* Title */}
         <div>
           <label className="text-sm font-semibold tracking-wider text-gray-300 uppercase flex items-center gap-1.5 mb-1.5">
-            <Heading className="w-4 h-4 text-orange-400" />
+            <Heading className="w-4 h-4 text-purple-400" />
             <span>Título do Registro</span>
           </label>
           {isEditing ? (
@@ -268,15 +249,15 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
               value={editedDraft.title}
               placeholder="Digite um título para o registro (opcional)"
               onChange={(e) => setEditedDraft({ ...editedDraft, title: e.target.value })}
-              className="w-full bg-[#12141D] border border-[#33384D] focus:border-orange-500 rounded-xl p-3.5 text-base font-semibold text-white placeholder-gray-500 focus:outline-none transition-colors"
+              className="w-full bg-[#12141D] border border-[#33384D] focus:border-purple-500 rounded-xl p-3.5 text-base font-semibold text-white placeholder-gray-500 focus:outline-none transition-colors"
             />
           ) : (
             <div
               onClick={() => setIsEditing(true)}
-              className="bg-[#191C29] hover:bg-[#1C2030] p-4 rounded-xl border border-[#252838] hover:border-orange-500/40 text-base text-gray-100 font-semibold cursor-pointer transition-colors group relative"
+              className="bg-[#191C29] hover:bg-[#1C2030] p-4 rounded-xl border border-[#252838] hover:border-purple-500/40 text-base text-gray-100 font-semibold cursor-pointer transition-colors group relative"
               title="Clique para editar o título"
             >
-              <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-sm text-orange-400 flex items-center gap-1 bg-[#13151F] px-2.5 py-0.5 rounded border border-orange-500/30">
+              <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-sm text-purple-400 flex items-center gap-1 bg-[#13151F] px-2.5 py-0.5 rounded border border-purple-500/30">
                 <Edit3 className="w-3.5 h-3.5" />
                 <span>Clique para editar</span>
               </div>
@@ -295,44 +276,34 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="text-sm font-semibold tracking-wider text-gray-300 uppercase flex items-center gap-1.5">
-              <Layers className="w-4 h-4 text-orange-400" />
+              <Layers className="w-4 h-4 text-purple-400" />
               <span>Conteúdo do Diário de Bordo</span>
             </label>
-            <span
-              className={`text-sm font-mono ${
-                currentContent.length >= 2000
-                  ? 'text-rose-400 font-bold'
-                  : currentContent.length > 1800
-                  ? 'text-amber-400'
-                  : 'text-gray-400'
-              }`}
-            >
-              {currentContent.length} / 2000 caracteres
+            <span className="text-sm font-mono text-gray-400">
+              {currentContent.length} caracteres
             </span>
           </div>
 
           {isEditing ? (
             <textarea
-              rows={8}
-              maxLength={2000}
+              rows={10}
               value={editedDraft.content}
               onChange={(e) => {
-                const newContent = e.target.value.slice(0, 2000);
                 setEditedDraft({
                   ...editedDraft,
-                  content: newContent,
+                  content: e.target.value,
                 });
               }}
-              className="w-full bg-[#12141D] border border-[#33384D] focus:border-orange-500 rounded-xl p-3.5 text-base leading-relaxed text-gray-100 placeholder-gray-500 focus:outline-none resize-y font-sans transition-colors"
-              placeholder="Digite livremente o que você realizou (máximo 2000 caracteres)..."
+              className="w-full bg-[#12141D] border border-[#33384D] focus:border-purple-500 rounded-xl p-3.5 text-base leading-relaxed text-gray-100 placeholder-gray-500 focus:outline-none resize-y font-sans transition-colors"
+              placeholder="Digite livremente o que você realizou..."
             />
           ) : (
             <div
               onClick={() => setIsEditing(true)}
-              className="bg-[#191C29] hover:bg-[#1C2030] p-4 rounded-xl border border-[#252838] hover:border-orange-500/40 text-base text-gray-200 leading-relaxed whitespace-pre-wrap font-sans cursor-pointer transition-colors group relative"
+              className="bg-[#191C29] hover:bg-[#1C2030] p-4 rounded-xl border border-[#252838] hover:border-purple-500/40 text-base text-gray-200 leading-relaxed whitespace-pre-wrap font-sans cursor-pointer transition-colors group relative"
               title="Clique para editar o texto"
             >
-              <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-sm text-orange-400 flex items-center gap-1 bg-[#13151F] px-2.5 py-0.5 rounded border border-orange-500/30">
+              <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-sm text-purple-400 flex items-center gap-1 bg-[#13151F] px-2.5 py-0.5 rounded border border-purple-500/30">
                 <Edit3 className="w-3.5 h-3.5" />
                 <span>Clique para editar</span>
               </div>
@@ -346,13 +317,13 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-sm font-semibold tracking-wider text-gray-300 uppercase flex items-center gap-1.5">
-                <Tag className="w-4 h-4 text-orange-400" />
+                <Tag className="w-4 h-4 text-purple-400" />
                 <span>Competências Selecionadas ({current.competences.length})</span>
               </label>
               <button
                 type="button"
                 onClick={() => setShowCompetencesDropdown(!showCompetencesDropdown)}
-                className="text-sm text-orange-400 hover:text-orange-300 flex items-center gap-1 cursor-pointer font-medium"
+                className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1 cursor-pointer font-medium"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>{showCompetencesDropdown ? 'Fechar Catálogo' : 'Gerenciar Competências'}</span>
@@ -364,13 +335,13 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
               {current.competences.map((comp) => (
                 <span
                   key={comp.id}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-500/10 border border-orange-500/25 text-orange-300 text-sm font-medium"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/25 text-purple-300 text-sm font-medium"
                 >
                   <span>{comp.name}</span>
                   <button
                     type="button"
                     onClick={() => handleToggleCompetence(comp)}
-                    className="hover:text-rose-400 text-orange-400/70 cursor-pointer text-base leading-none"
+                    className="hover:text-rose-400 text-purple-400/70 cursor-pointer text-base leading-none"
                     title="Remover competência"
                   >
                     ×
@@ -389,7 +360,7 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
                   <span className="text-sm text-gray-300 uppercase font-semibold">
                     Catálogo de Competências People Zup
                   </span>
-                  <span className="text-sm text-orange-400 font-mono">
+                  <span className="text-sm text-purple-400 font-mono">
                     {
                       competenceList.filter((c) =>
                         c.name.toLowerCase().includes(competenceSearch.toLowerCase().trim())
@@ -407,7 +378,7 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
                     placeholder="Filtrar competência (ex: Java, Liderança, Testes, Cloud)..."
                     value={competenceSearch}
                     onChange={(e) => setCompetenceSearch(e.target.value)}
-                    className="w-full bg-[#1C1F2E] border border-[#33384D] focus:border-orange-500 rounded-lg pl-9 pr-9 py-2 text-sm text-white placeholder-gray-500 focus:outline-none transition-colors"
+                    className="w-full bg-[#1C1F2E] border border-[#33384D] focus:border-purple-500 rounded-lg pl-9 pr-9 py-2 text-sm text-white placeholder-gray-500 focus:outline-none transition-colors"
                     autoFocus
                   />
                   {competenceSearch && (
@@ -435,12 +406,12 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
                           onClick={() => handleToggleCompetence(comp)}
                           className={`text-left px-3 py-2 rounded-lg text-sm transition-colors truncate flex items-center justify-between cursor-pointer ${
                             selected
-                              ? 'bg-orange-500/20 text-orange-300 font-semibold border border-orange-500/30'
+                              ? 'bg-purple-600/20 text-purple-300 font-semibold border border-purple-500/30'
                               : 'text-gray-300 hover:bg-[#1E2232] hover:text-white border border-transparent'
                           }`}
                         >
                           <span className="truncate">{comp.name}</span>
-                          {selected && <Check className="w-3.5 h-3.5 text-orange-400 shrink-0 ml-1.5" />}
+                          {selected && <Check className="w-3.5 h-3.5 text-purple-400 shrink-0 ml-1.5" />}
                         </button>
                       );
                     })}
@@ -465,7 +436,7 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
         <div className="text-sm text-gray-400 flex items-center gap-2">
           <span
             className={`w-2 h-2 rounded-full ${
-              current.type === 'livre' ? 'bg-blue-400' : 'bg-orange-400'
+              current.type === 'livre' ? 'bg-blue-400' : 'bg-purple-400'
             }`}
           ></span>
           <span>
@@ -493,7 +464,7 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
                   ? 'bg-emerald-600 text-white cursor-default'
                   : current.type === 'livre'
                   ? 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-blue-500/25 hover:scale-[1.02] cursor-pointer'
-                  : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-orange-500/25 hover:scale-[1.02] cursor-pointer'
+                  : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-purple-600/25 hover:scale-[1.02] cursor-pointer'
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {isSubmitting ? (
