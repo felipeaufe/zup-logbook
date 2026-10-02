@@ -689,16 +689,7 @@ async function getAuthSession(forceRefresh = false): Promise<AuthSessionInfo> {
 export function mountZupLogbook() {
   const existing = document.getElementById(HOST_ID);
   if (existing) {
-    if (existing.style.display === 'none') {
-      existing.style.display = 'block';
-      setTimeout(() => {
-        const ta = existing.shadowRoot?.querySelector('textarea');
-        ta?.focus();
-      }, 50);
-    } else {
-      existing.style.display = 'none';
-    }
-    return;
+    existing.remove();
   }
 
   const host = document.createElement('div');
