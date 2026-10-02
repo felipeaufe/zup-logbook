@@ -5,7 +5,24 @@ import styles from '../renderer/styles/globals.css?inline';
 
 const HOST_ID = 'zup-logbook-host';
 
+export const LOGBOOK_FAVICON_DATA_URI =
+  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj48c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjN0MzQUVEIi8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjNEY0NkU1Ii8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTYiIGZpbGw9InVybCgjZykiLz48cGF0aCBkPSJNMTYgMjBjNC0yIDEwLTIgMTYgMnYyMmMtNi00LTEyLTQtMTYtMlYyMHoiIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC45NSIvPjxwYXRoIGQ9Ik00OCAyMGMtNC0yLTEwLTItMTYgMnYyMmM2LTQgMTItNCAxNi0yVjIweiIgZmlsbD0iI2ZmZmZmZiIgZmlsbC1vcGFjaXR5PSIwLjg1Ii8+PHBhdGggZD0iTTMyIDIydjIyIiBzdHJva2U9IiM0RjQ2RTUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PHBhdGggZD0iTTQ3IDEzbDEuNSAzLjVMNTIgMThsLTMuNSAxLjVMNDcgMjNsLTEuNS0zLjVMNDIgMThsMy41LTEuNXoiIGZpbGw9IiNGQkJGMjQiLz48L3N2Zz4=';
+
+function applyLogbookFavicon() {
+  try {
+    let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    link.type = 'image/svg+xml';
+    link.href = LOGBOOK_FAVICON_DATA_URI;
+  } catch {}
+}
+
 export function mountZupLogbook() {
+  applyLogbookFavicon();
   const existingHost = document.getElementById(HOST_ID);
   if (existingHost) {
     // Alterna a visibilidade se já estiver montado na página
