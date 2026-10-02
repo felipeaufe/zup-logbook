@@ -53,23 +53,42 @@ def main():
     build_work_dir = root / "build"
     dist_bin_dir.mkdir(exist_ok=True)
 
+    is_windows = sys.platform == "win32"
+    is_mac = sys.platform == "darwin"
+    data_sep = ";" if is_windows else ":"
+    bin_name = "zup-logbook.exe" if is_windows else "zup-logbook"
+
     cmd = [
         pyinstaller_bin,
         "--name", "zup-logbook",
         "--onefile",
         "--distpath", str(dist_bin_dir),
         "--workpath", str(build_work_dir),
-        "--add-data", f"{dist_dir}:dist",
-        "--hidden-import", "webview.platforms.gtk",
-        "--hidden-import", "gi",
-        "--hidden-import", "gi.repository.Gtk",
-        "--hidden-import", "gi.repository.Gdk",
-        "--hidden-import", "gi.repository.GLib",
-        "--hidden-import", "gi.repository.WebKit2",
+        "--add-data", f"{dist_dir}{data_sep}dist",
         "--noconfirm",
         "--clean",
-        str(root / "run.py"),
     ]
+
+    if is_windows:
+        cmd.extend([
+            "--hidden-import", "webview.platforms.winforms",
+            "--hidden-import", "webview.platforms.edgechromium",
+        ])
+    elif is_mac:
+        cmd.extend([
+            "--hidden-import", "webview.platforms.cocoa",
+        ])
+    else:
+        cmd.extend([
+            "--hidden-import", "webview.platforms.gtk",
+            "--hidden-import", "gi",
+            "--hidden-import", "gi.repository.Gtk",
+            "--hidden-import", "gi.repository.Gdk",
+            "--hidden-import", "gi.repository.GLib",
+            "--hidden-import", "gi.repository.WebKit2",
+        ])
+
+    cmd.append(str(root / "run.py"))
 
     try:
         subprocess.run(cmd, cwd=root, check=True)
@@ -77,7 +96,7 @@ def main():
         print(f"❌ Erro no empacotamento do binário: {e}")
         sys.exit(1)
 
-    binary_path = dist_bin_dir / "zup-logbook"
+    binary_path = dist_bin_dir / bin_name
     if binary_path.exists():
         size_mb = binary_path.stat().st_size / (1024 * 1024)
         print("\n" + "=" * 60)
