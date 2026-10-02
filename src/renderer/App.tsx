@@ -77,13 +77,46 @@ export const App: React.FC<AppProps> = ({ onClose }) => {
   const [activeMode, setActiveMode] = useState<'performance' | 'livre' | null>(null);
   const [competences, setCompetences] = useState<CompetenceItem[]>(ALL_COMPETENCES);
   const [isFullWidth, setIsFullWidth] = useState(true);
+  const [dockSide, setDockSide] = useState<'right' | 'left'>('right');
 
   const handleToggleWidth = () => {
     const next = !isFullWidth;
     setIsFullWidth(next);
     const host = document.getElementById('zup-logbook-host');
     if (host) {
-      host.style.width = next ? '100vw' : '720px';
+      if (next) {
+        host.style.width = '100vw';
+        host.style.left = '0';
+        host.style.right = '0';
+      } else {
+        host.style.width = '720px';
+        if (dockSide === 'left') {
+          host.style.left = '0';
+          host.style.right = 'auto';
+          host.style.boxShadow = '8px 0 32px rgba(0, 0, 0, 0.6)';
+        } else {
+          host.style.left = 'auto';
+          host.style.right = '0';
+          host.style.boxShadow = '-8px 0 32px rgba(0, 0, 0, 0.6)';
+        }
+      }
+    }
+  };
+
+  const handleToggleSide = () => {
+    const nextSide = dockSide === 'right' ? 'left' : 'right';
+    setDockSide(nextSide);
+    const host = document.getElementById('zup-logbook-host');
+    if (host) {
+      if (nextSide === 'left') {
+        host.style.right = 'auto';
+        host.style.left = '0';
+        host.style.boxShadow = '8px 0 32px rgba(0, 0, 0, 0.6)';
+      } else {
+        host.style.left = 'auto';
+        host.style.right = '0';
+        host.style.boxShadow = '-8px 0 32px rgba(0, 0, 0, 0.6)';
+      }
     }
   };
 
@@ -474,6 +507,8 @@ export const App: React.FC<AppProps> = ({ onClose }) => {
         hasMessages={currentScreen === 'chat' && messages.length > 0}
         isFullWidth={isFullWidth}
         onToggleWidth={handleToggleWidth}
+        dockSide={dockSide}
+        onToggleSide={handleToggleSide}
       />
 
       {/* Screen Router */}

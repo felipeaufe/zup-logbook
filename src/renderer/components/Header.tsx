@@ -1,6 +1,17 @@
 import React from 'react';
 import { AuthSession } from '../../types';
-import { Settings, LogIn, BookOpen, X, Loader2, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
+import {
+  Settings,
+  LogIn,
+  BookOpen,
+  X,
+  Loader2,
+  RotateCcw,
+  Maximize2,
+  Minimize2,
+  ArrowLeftToLine,
+  ArrowRightToLine,
+} from 'lucide-react';
 
 interface HeaderProps {
   session: AuthSession;
@@ -14,6 +25,8 @@ interface HeaderProps {
   hasMessages?: boolean;
   isFullWidth?: boolean;
   onToggleWidth?: () => void;
+  dockSide?: 'right' | 'left';
+  onToggleSide?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,6 +40,8 @@ export const Header: React.FC<HeaderProps> = ({
   hasMessages = false,
   isFullWidth = true,
   onToggleWidth,
+  dockSide = 'right',
+  onToggleSide,
 }) => {
   const isAuthenticated = Boolean(session.token);
 
@@ -68,13 +83,17 @@ export const Header: React.FC<HeaderProps> = ({
         {/* User Info (when authenticated) */}
         {isAuthenticated ? (
           <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#181B26] border border-[#2B3042] text-gray-200 text-sm font-medium"
-            title={session.user?.email ? `Logado como: ${session.user.email}` : undefined}
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#181B26] border border-[#2B3042] text-gray-200 text-sm font-medium shrink-0"
+            title={`Logado como: ${getUserDisplayName()}${session.user?.email ? ` (${session.user.email})` : ''}`}
           >
-            <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-xs font-bold text-white uppercase shadow-sm">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-xs font-bold text-white uppercase shadow-sm shrink-0">
               {getUserDisplayName().charAt(0)}
             </div>
-            <span className="font-semibold text-gray-100">{getUserDisplayName()}</span>
+            {isFullWidth && (
+              <span className="font-semibold text-gray-100 truncate max-w-[200px]">
+                {getUserDisplayName()}
+              </span>
+            )}
           </div>
         ) : isLoggingIn ? (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-950/40 border border-blue-500/30 text-blue-300 text-sm">
@@ -101,6 +120,21 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <RotateCcw className="w-4 h-4 text-purple-400" />
             <span>Novo Registro</span>
+          </button>
+        )}
+
+        {/* Dock position toggle button: Left <-> Right (only visible when not full width) */}
+        {!isFullWidth && onToggleSide && (
+          <button
+            onClick={onToggleSide}
+            title={dockSide === 'right' ? "Mover painel para a esquerda" : "Mover painel para a direita"}
+            className="p-2 rounded-lg border border-[#2A2D3A] text-gray-400 hover:text-white hover:bg-[#1A1D27] hover:border-gray-600 transition-colors cursor-pointer"
+          >
+            {dockSide === 'right' ? (
+              <ArrowLeftToLine className="w-4 h-4 text-gray-300 hover:text-white" />
+            ) : (
+              <ArrowRightToLine className="w-4 h-4 text-gray-300 hover:text-white" />
+            )}
           </button>
         )}
 
