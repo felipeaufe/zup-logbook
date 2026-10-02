@@ -40,8 +40,11 @@ export function mountZupLogbook() {
       all: initial;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
-    * {
+    :host, *, ::before, ::after {
       box-sizing: border-box;
+      --tw-gradient-from-position: 0%;
+      --tw-gradient-via-position: 50%;
+      --tw-gradient-to-position: 100%;
     }
     ${styles}
   `;

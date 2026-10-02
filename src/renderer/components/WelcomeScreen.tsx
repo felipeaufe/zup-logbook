@@ -70,13 +70,16 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         {isAuthenticated ? (
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <button
+              type="button"
               onClick={onContinueToChat}
-              className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base shadow-xl shadow-purple-600/25 transition-all hover:scale-[1.02] cursor-pointer"
+              style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)' }}
+              className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base shadow-xl shadow-purple-600/30 transition-all hover:scale-[1.02] cursor-pointer"
             >
               <span>Abrir Chat do Agente</span>
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
+              type="button"
               onClick={onStartLogin}
               className="px-4 py-3.5 rounded-xl border border-[#2A2D3A] text-gray-300 hover:text-white hover:bg-[#1A1D27] text-base font-medium transition-colors"
             >
@@ -86,8 +89,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         ) : (
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <button
+              type="button"
               onClick={onStartLogin}
-              className="flex items-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold text-base shadow-xl shadow-purple-600/25 transition-all hover:scale-[1.02] cursor-pointer"
+              style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)' }}
+              className="flex items-center gap-2 px-7 py-3.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base shadow-xl shadow-purple-600/30 transition-all hover:scale-[1.02] cursor-pointer"
             >
               <KeyRound className="w-4 h-4" />
               <span>Conectar ao People Zup</span>

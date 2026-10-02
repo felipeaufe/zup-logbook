@@ -91,7 +91,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 <button
                   type="button"
                   onClick={() => onSelectInitialMode('performance')}
-                  className="p-5 rounded-2xl bg-gradient-to-br from-[#1A1D2B] to-[#141624] hover:from-[#212638] hover:to-[#191D2E] border border-purple-500/30 hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/15 transition-all text-left flex flex-col justify-between group cursor-pointer h-full"
+                  style={{ background: 'linear-gradient(135deg, #1A1D2B 0%, #141624 100%)' }}
+                  className="p-5 rounded-2xl bg-[#1A1D2B] hover:from-[#212638] hover:to-[#191D2E] border border-purple-500/30 hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/15 transition-all text-left flex flex-col justify-between group cursor-pointer h-full"
                 >
                   <div className="flex-1 flex flex-col">
                     <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center mb-3 shrink-0">
@@ -113,7 +114,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 <button
                   type="button"
                   onClick={() => onSelectInitialMode('livre')}
-                  className="p-5 rounded-2xl bg-gradient-to-br from-[#1A1D2B] to-[#141624] hover:from-[#1E2436] hover:to-[#171B2A] border border-blue-500/30 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/15 transition-all text-left flex flex-col justify-between group cursor-pointer h-full"
+                  style={{ background: 'linear-gradient(135deg, #1A1D2B 0%, #141624 100%)' }}
+                  className="p-5 rounded-2xl bg-[#1A1D2B] hover:from-[#1E2436] hover:to-[#171B2A] border border-blue-500/30 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/15 transition-all text-left flex flex-col justify-between group cursor-pointer h-full"
                 >
                   <div className="flex-1 flex flex-col">
                     <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center mb-3 shrink-0">

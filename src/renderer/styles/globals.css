@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 @layer base {
+  :host, *, ::before, ::after {
+    --tw-gradient-from-position: 0%;
+    --tw-gradient-via-position: 50%;
+    --tw-gradient-to-position: 100%;
+  }
   html, body {
     @apply bg-[#0D0E12] text-gray-100 text-base selection:bg-purple-600/30 selection:text-purple-200;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
