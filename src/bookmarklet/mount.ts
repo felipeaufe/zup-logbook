@@ -302,7 +302,8 @@ let capturedToken: string | null = null;
 let capturedRefreshToken: string | null = null;
 
 try {
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && !(window as any).__zup_interceptors_installed) {
+    (window as any).__zup_interceptors_installed = true;
     const origFetch = window.fetch;
     window.fetch = async function (...args) {
       try {
@@ -689,7 +690,13 @@ async function getAuthSession(forceRefresh = false): Promise<AuthSessionInfo> {
 export function mountZupLogbook() {
   const existing = document.getElementById(HOST_ID);
   if (existing) {
-    existing.remove();
+    if (existing.style.display === 'none') {
+      existing.style.display = 'block';
+      existing.dispatchEvent(new CustomEvent('zup-open'));
+    } else {
+      existing.style.display = 'none';
+    }
+    return;
   }
 
   const host = document.createElement('div');
@@ -767,10 +774,29 @@ export function mountZupLogbook() {
       display: flex;
       align-items: center;
       gap: 4px;
-      max-width: 250px;
+      max-width: 230px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .session-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .session-refresh-btn {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 11px;
+      padding: 2px;
+      line-height: 1;
+      transition: transform 0.2s, color 0.2s;
+    }
+    .session-refresh-btn:hover {
+      color: #fff;
+      transform: rotate(90deg);
     }
     .session-toggle-btn {
       background: none;
@@ -815,6 +841,20 @@ export function mountZupLogbook() {
     .manual-apply-btn:hover {
       background: #4f46e5;
     }
+    .manual-refresh-btn {
+      background: #252836;
+      color: #e2e8f0;
+      border: 1px solid #3b4261;
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .manual-refresh-btn:hover {
+      background: #32374a;
+      color: #fff;
+    }
     .manual-clear-btn {
       background: #252836;
       color: #94a3b8;
@@ -823,6 +863,7 @@ export function mountZupLogbook() {
       border-radius: 4px;
       font-size: 11px;
       cursor: pointer;
+      line-height: 1;
     }
     textarea {
       flex: 1;
@@ -895,11 +936,15 @@ export function mountZupLogbook() {
     </div>
     <div class="session-bar">
       <span class="session-badge">● Detectando sessão...</span>
-      <button class="session-toggle-btn" type="button">Chave manual</button>
+      <div class="session-actions">
+        <button class="session-refresh-btn" type="button" title="Atualizar sessão e testar token">🔄</button>
+        <button class="session-toggle-btn" type="button">Chave manual</button>
+      </div>
     </div>
     <div class="manual-box">
       <input type="password" class="manual-input" placeholder="Cole o Bearer token aqui..." />
       <button class="manual-apply-btn" type="button">Salvar</button>
+      <button class="manual-refresh-btn" type="button" title="Recarregar e validar token">🔄</button>
       <button class="manual-clear-btn" type="button" title="Limpar token manual">✕</button>
     </div>
     <textarea placeholder="Cole o Markdown ou texto do relato aqui..." autofocus></textarea>
@@ -910,17 +955,19 @@ export function mountZupLogbook() {
 
   const closeBtn = modal.querySelector('.close-btn') as HTMLButtonElement;
   const sessionBadge = modal.querySelector('.session-badge') as HTMLSpanElement;
+  const sessionRefreshBtn = modal.querySelector('.session-refresh-btn') as HTMLButtonElement;
   const sessionToggleBtn = modal.querySelector('.session-toggle-btn') as HTMLButtonElement;
   const manualBox = modal.querySelector('.manual-box') as HTMLDivElement;
   const manualInput = modal.querySelector('.manual-input') as HTMLInputElement;
   const manualApplyBtn = modal.querySelector('.manual-apply-btn') as HTMLButtonElement;
+  const manualRefreshBtn = modal.querySelector('.manual-refresh-btn') as HTMLButtonElement;
   const manualClearBtn = modal.querySelector('.manual-clear-btn') as HTMLButtonElement;
   const textarea = modal.querySelector('textarea') as HTMLTextAreaElement;
   const statusEl = modal.querySelector('.status') as HTMLDivElement;
   const submitBtn = modal.querySelector('.submit-btn') as HTMLButtonElement;
 
-  const updateSessionUI = async () => {
-    const auth = await getAuthSession();
+  const updateSessionUI = async (forceRefresh = false) => {
+    const auth = await getAuthSession(forceRefresh);
     if (auth.token && !auth.isExpired) {
       const mins = Math.max(0, Math.round((auth.exp - Date.now()) / 60000));
       const user = auth.userEmail ? auth.userEmail.split('@')[0] : 'Sessão ativa';
@@ -938,6 +985,24 @@ export function mountZupLogbook() {
     }
   };
 
+  const handleRefresh = async () => {
+    sessionBadge.textContent = '🔄 Atualizando...';
+    sessionBadge.style.color = '#818cf8';
+    await updateSessionUI(true);
+    showStatus('success', 'Sessão atualizada!');
+    setTimeout(clearStatus, 3000);
+  };
+
+  sessionRefreshBtn.onclick = (e) => {
+    e.stopPropagation();
+    handleRefresh();
+  };
+
+  manualRefreshBtn.onclick = (e) => {
+    e.stopPropagation();
+    handleRefresh();
+  };
+
   sessionToggleBtn.onclick = () => {
     const isHidden = manualBox.style.display === 'none' || !manualBox.style.display;
     manualBox.style.display = isHidden ? 'flex' : 'none';
@@ -948,31 +1013,33 @@ export function mountZupLogbook() {
     }
   };
 
-  manualApplyBtn.onclick = () => {
+  manualApplyBtn.onclick = async () => {
     const val = manualInput.value.trim().replace(/^bearer\s+/i, '');
     if (val) {
       sessionStorage.setItem('zup_manual_token', val);
       manualBox.style.display = 'none';
-      updateSessionUI();
-      showStatus('success', 'Chave manual salva com sucesso!');
+      await updateSessionUI(true);
+      showStatus('success', 'Chave manual salva e validada com sucesso!');
+      setTimeout(clearStatus, 3000);
     }
   };
 
-  manualClearBtn.onclick = () => {
+  manualClearBtn.onclick = async () => {
     sessionStorage.removeItem('zup_manual_token');
     localStorage.removeItem('zup_manual_token');
     manualInput.value = '';
     manualBox.style.display = 'none';
-    updateSessionUI();
+    await updateSessionUI(true);
     showStatus('success', 'Chave manual removida.');
+    setTimeout(clearStatus, 3000);
   };
 
   const close = () => {
     host.style.display = 'none';
-    window.removeEventListener('pointerdown', onOutsidePointer, true);
   };
 
   const onOutsidePointer = (e: PointerEvent) => {
+    if (host.style.display === 'none') return;
     const path = e.composedPath();
     if (!path.includes(host)) {
       close();
@@ -998,6 +1065,13 @@ export function mountZupLogbook() {
     submitBtn.disabled = !textarea.value.trim();
     clearStatus();
   };
+
+  host.addEventListener('zup-open', () => {
+    updateSessionUI();
+    setTimeout(() => {
+      textarea.focus();
+    }, 50);
+  });
 
   const send = async () => {
     const val = textarea.value.trim();

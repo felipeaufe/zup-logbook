@@ -165,7 +165,7 @@
 
     <!-- Botão de arrastar -->
     <div style="text-align: center;">
-      <a id="bookmarkletLink" href="javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){h.remove();}const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet-simplified/dist/zup-logbook.bookmarklet.js?t='+Date.now();s.onerror=function(){alert('Erro ao carregar o script do Bookmarklet da CDN.');};document.body.appendChild(s);})();" class="btn-bookmarklet" title="Arraste para seus Favoritos">
+      <a id="bookmarkletLink" href="javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){if(h.style.display==='none'){h.style.display='block';h.dispatchEvent(new CustomEvent('zup-open'));}else{h.style.display='none';}return;}if(typeof window.ZupLogbook?.mountZupLogbook==='function'){window.ZupLogbook.mountZupLogbook();return;}const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet-simplified/dist/zup-logbook.bookmarklet.js?t='+Date.now();s.onerror=function(){alert('Erro ao carregar o script do Bookmarklet da CDN.');};document.body.appendChild(s);})();" class="btn-bookmarklet" title="Arraste para seus Favoritos">
         ⭐ Zup Logbook
       </a>
       <p style="font-size: 13px; color: #64748B; margin: 0;">
@@ -188,7 +188,7 @@
         <span style="font-size: 13px; color: #94A3B8;">Código do Bookmarklet Loader (apenas 120 caracteres):</span>
         <button class="btn-copy" onclick="copyCode()">Copiar Código</button>
       </div>
-      <textarea id="code" readonly>javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){h.remove();}const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet-simplified/dist/zup-logbook.bookmarklet.js?t='+Date.now();s.onerror=function(){alert('Erro ao carregar o script do Bookmarklet da CDN.');};document.body.appendChild(s);})();</textarea>
+      <textarea id="code" readonly>javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){if(h.style.display==='none'){h.style.display='block';h.dispatchEvent(new CustomEvent('zup-open'));}else{h.style.display='none';}return;}if(typeof window.ZupLogbook?.mountZupLogbook==='function'){window.ZupLogbook.mountZupLogbook();return;}const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet-simplified/dist/zup-logbook.bookmarklet.js?t='+Date.now();s.onerror=function(){alert('Erro ao carregar o script do Bookmarklet da CDN.');};document.body.appendChild(s);})();</textarea>
     </div>
   </div>
 

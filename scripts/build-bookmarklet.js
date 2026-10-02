@@ -13,9 +13,9 @@ if (!fs.existsSync(bundlePath)) {
   process.exit(1);
 }
 
-// Bookmarklet Loader com auto-redirecionamento para o People e recarregamento limpo
+// Bookmarklet Loader com auto-redirecionamento para o People e toggle instantâneo
 function generateLoader(url) {
-  return `javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){h.remove();}const s=document.createElement('script');s.src='${url}?t='+Date.now();s.onerror=function(){alert('Erro ao carregar o script do Bookmarklet da CDN.');};document.body.appendChild(s);})();`;
+  return `javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){if(h.style.display==='none'){h.style.display='block';h.dispatchEvent(new CustomEvent('zup-open'));}else{h.style.display='none';}return;}if(typeof window.ZupLogbook?.mountZupLogbook==='function'){window.ZupLogbook.mountZupLogbook();return;}const s=document.createElement('script');s.src='${url}?t='+Date.now();s.onerror=function(){alert('Erro ao carregar o script do Bookmarklet da CDN.');};document.body.appendChild(s);})();`;
 }
 
 const defaultUrl = 'https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet-simplified/dist/zup-logbook.bookmarklet.js';
