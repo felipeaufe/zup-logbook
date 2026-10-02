@@ -89,10 +89,14 @@ function getAuthToken(): string | null {
 export function mountZupLogbook() {
   const existing = document.getElementById(HOST_ID);
   if (existing) {
-    existing.style.display = existing.style.display === 'none' ? 'block' : 'none';
-    if (existing.style.display === 'block') {
-      const textarea = existing.shadowRoot?.querySelector('textarea');
-      textarea?.focus();
+    if (existing.style.display === 'none') {
+      existing.style.display = 'block';
+      setTimeout(() => {
+        const ta = existing.shadowRoot?.querySelector('textarea');
+        ta?.focus();
+      }, 50);
+    } else {
+      existing.style.display = 'none';
     }
     return;
   }
@@ -100,8 +104,17 @@ export function mountZupLogbook() {
   const host = document.createElement('div');
   host.id = HOST_ID;
   host.style.position = 'fixed';
-  host.style.inset = '0';
+  host.style.top = '50%';
+  host.style.left = '50%';
+  host.style.transform = 'translate(-50%, -50%)';
+  host.style.width = '380px';
+  host.style.height = '380px';
+  host.style.maxWidth = '90vw';
+  host.style.maxHeight = '90vh';
   host.style.zIndex = '2147483647';
+  host.style.display = 'block';
+  host.style.boxShadow = '0 25px 50px -12px rgba(0, 0, 0, 0.75), 0 0 0 100vmax rgba(0, 0, 0, 0.45)';
+  host.style.borderRadius = '12px';
   host.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
   const shadow = host.attachShadow({ mode: 'open' });
@@ -109,26 +122,22 @@ export function mountZupLogbook() {
   const style = document.createElement('style');
   style.textContent = `
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    .backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    :host {
+      all: initial;
+      display: block;
     }
     .modal {
-      width: 360px;
-      height: 360px;
+      width: 100%;
+      height: 100%;
       background: #181920;
       border: 1px solid #2d3142;
       border-radius: 12px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
       display: flex;
       flex-direction: column;
       padding: 16px;
       gap: 10px;
       color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       user-select: none;
     }
     .header {
@@ -217,9 +226,6 @@ export function mountZupLogbook() {
   `;
   shadow.appendChild(style);
 
-  const backdrop = document.createElement('div');
-  backdrop.className = 'backdrop';
-
   const modal = document.createElement('div');
   modal.className = 'modal';
   modal.innerHTML = `
@@ -231,9 +237,7 @@ export function mountZupLogbook() {
     <div class="status"></div>
     <button class="submit-btn" type="button" disabled>Enviar</button>
   `;
-
-  backdrop.appendChild(modal);
-  shadow.appendChild(backdrop);
+  shadow.appendChild(modal);
 
   const closeBtn = modal.querySelector('.close-btn') as HTMLButtonElement;
   const textarea = modal.querySelector('textarea') as HTMLTextAreaElement;
@@ -242,19 +246,19 @@ export function mountZupLogbook() {
 
   const close = () => {
     host.style.display = 'none';
+    window.removeEventListener('pointerdown', onOutsidePointer, true);
+  };
+
+  const onOutsidePointer = (e: PointerEvent) => {
+    const path = e.composedPath();
+    if (!path.includes(host)) {
+      close();
+    }
   };
 
   closeBtn.onclick = (e) => {
     e.stopPropagation();
     close();
-  };
-
-  modal.onclick = (e) => {
-    e.stopPropagation();
-  };
-
-  backdrop.onclick = (e) => {
-    if (e.target === backdrop) close();
   };
 
   const showStatus = (type: 'success' | 'error', msg: string) => {
@@ -344,7 +348,10 @@ export function mountZupLogbook() {
   };
 
   document.body.appendChild(host);
-  setTimeout(() => textarea.focus(), 50);
+  setTimeout(() => {
+    textarea.focus();
+    window.addEventListener('pointerdown', onOutsidePointer, true);
+  }, 100);
 }
 
 mountZupLogbook();
