@@ -523,7 +523,7 @@ export function mountZupLogbook() {
 
   const updateSessionUI = async (forceRefresh = false) => {
     let session = storage.getSession();
-    if (forceRefresh || !session.token || session.isExpired) {
+    if (forceRefresh || !session.token) {
       session = authService.detectSessionFromPage(forceRefresh);
     }
     if (session.token && !session.isExpired) {
@@ -535,7 +535,7 @@ export function mountZupLogbook() {
       sessionBadge.style.color = '#4ade80';
       sessionBadge.title = session.expiresAt ? `Expira às ${new Date(session.expiresAt).toLocaleTimeString()}` : 'Sessão ativa';
     } else if (session.token && session.isExpired) {
-      sessionBadge.textContent = '🔴 Sessão expirada (F5 no People)';
+      sessionBadge.textContent = '🔴 Sessão expirada (clique 🔄)';
       sessionBadge.style.color = '#f87171';
       sessionBadge.title = session.expiresAt ? `Expirou às ${new Date(session.expiresAt).toLocaleTimeString()}` : 'Expirado';
     } else {
@@ -716,13 +716,13 @@ export function mountZupLogbook() {
     try {
       let result = await doSubmit(session.token);
 
-      // Se falhar com 401, 403 ou "explicit deny" / "not authorized", tenta renovar via refresh token ou SSO e reenvia uma vez
-      if (!result.ok && (result.status === 401 || result.status === 403 || result.text.includes('not authorized') || result.text.includes('deny'))) {
+      // Se falhar com 401, 403 ou "explicit deny" / "not authorized" / "expired", tenta renovar via refresh token ou SSO e reenvia uma vez
+      if (!result.ok && (result.status === 401 || result.status === 403 || result.text.includes('not authorized') || result.text.includes('deny') || result.text.toLowerCase().includes('expired'))) {
         submitBtn.textContent = 'Renovando sessão...';
         const renewed = await authService.refreshAccessToken();
         if (renewed) {
           const freshSession = storage.getSession();
-          if (freshSession.token && freshSession.token !== session.token) {
+          if (freshSession.token) {
             submitBtn.textContent = 'Reenviando...';
             result = await doSubmit(freshSession.token);
           }

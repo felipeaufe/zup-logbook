@@ -2,18 +2,23 @@ import { AuthSession } from '../types';
 import { storage } from './storage';
 
 function decodeJwtPayload(token: string): any {
+  if (!token || typeof token !== 'string') return null;
   try {
-    const parts = token.split('.');
+    const parts = token.trim().split('.');
     if (parts.length === 3) {
-      const base64Url = parts[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      return JSON.parse(jsonPayload);
+      let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (base64.length % 4 !== 0) base64 += '=';
+      try {
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        return JSON.parse(jsonPayload);
+      } catch {
+        return JSON.parse(atob(base64));
+      }
     }
   } catch (e) {
     console.warn('Erro ao decodificar JWT:', e);
@@ -77,9 +82,9 @@ export class AuthService {
       // 1. Interceptador de window.fetch
       const originalFetch = window.fetch;
       window.fetch = async function (...args) {
+        const input = args[0];
+        const init = args[1];
         try {
-          const input = args[0];
-          const init = args[1];
 
           let authHeader: string | null = null;
           if (init && init.headers) {
@@ -115,7 +120,22 @@ export class AuthService {
           }
         } catch (e) {}
 
-        return originalFetch.apply(this, args);
+        const response = await originalFetch.apply(this, args);
+
+        try {
+          const url = typeof input === 'string' ? input : (input as any)?.url || '';
+          if (url.includes('protocol/openid-connect/token') && response.ok) {
+            const clone = response.clone();
+            clone.json().then((data: any) => {
+              if (data?.access_token) {
+                console.log('[ZupLogbook] Novo token interceptado da resposta do Keycloak!');
+                self.handleKeycloakTokenResponse(data);
+              }
+            }).catch(() => {});
+          }
+        } catch (e) {}
+
+        return response;
       };
 
       // 2. Interceptador de XMLHttpRequest
@@ -254,7 +274,11 @@ export class AuthService {
           return b.exp - a.exp;
         });
 
-        const accessCandidate = accessPool[0] || validTokens.find((c) => c.typ === 'bearer') || validTokens[0] || candidates[0];
+        if (refreshCandidate) {
+          storage.updateSession({ refreshToken: refreshCandidate.token });
+        }
+
+        const accessCandidate = accessPool[0] || validTokens.find((c) => c.typ === 'bearer') || validTokens[0];
 
         if (accessCandidate) {
           console.log('[ZupLogbook] Sessão encontrada com sucesso na varredura profunda!');
@@ -263,6 +287,13 @@ export class AuthService {
       }
     } catch (e) {
       console.warn('Erro ao auto-detectar sessão do portal:', e);
+    }
+
+    // Se a sessão está expirada mas possui refresh token, tenta renovação automática em segundo plano
+    const session = storage.getSession();
+    if ((!session.token || session.isExpired) && session.refreshToken && !this.isRefreshing) {
+      console.log('[ZupLogbook] Sessão expirada na página, renovando automaticamente com refresh token...');
+      this.refreshAccessToken().catch(() => {});
     }
 
     return storage.getSession();
@@ -325,14 +356,65 @@ export class AuthService {
     });
   }
 
+  public handleKeycloakTokenResponse(data: any): AuthSession | null {
+    if (!data?.access_token) return null;
+    const newAccessToken = data.access_token;
+    const newRefreshToken = data.refresh_token;
+
+    const payload = decodeJwtPayload(newAccessToken);
+    const userInfo = payload ? extractCleanUserInfo(payload) : null;
+
+    let expMs = payload?.exp ? payload.exp * 1000 : 0;
+    if (data.expires_in) {
+      const fromExpiresIn = Date.now() + Number(data.expires_in) * 1000;
+      if (!expMs || fromExpiresIn > expMs) expMs = fromExpiresIn;
+    }
+    // Garante que o token recém emitido tem validade de no mínimo 5 minutos (evita falhas por clock skew)
+    if (expMs <= Date.now()) {
+      expMs = Date.now() + 300000;
+    }
+
+    const expiresAt = new Date(expMs).toISOString();
+
+    // Atualiza sessionStorage para People Zup e futuras leituras da página
+    try {
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith('oidc.user:')) {
+          const item = JSON.parse(sessionStorage.getItem(k) || '{}');
+          item.access_token = newAccessToken;
+          if (newRefreshToken) item.refresh_token = newRefreshToken;
+          if (data.id_token) item.id_token = data.id_token;
+          item.expires_at = Math.floor(expMs / 1000);
+          sessionStorage.setItem(k, JSON.stringify(item));
+          console.log('[ZupLogbook] sessionStorage atualizado com novo access_token para ' + k);
+        }
+      }
+    } catch {}
+
+    const updated = storage.updateSession({
+      token: newAccessToken,
+      ...(newRefreshToken ? { refreshToken: newRefreshToken } : {}),
+      user: userInfo || storage.getSession().user,
+      lastLogin: new Date().toISOString(),
+      expiresAt,
+      isExpired: false,
+    });
+
+    this.notify(updated);
+    return updated;
+  }
+
   public setManualToken(token: string, refreshToken?: string): AuthSession {
     const cleanToken = token.replace(/^Bearer\s+/i, '').trim();
     const payload = decodeJwtPayload(cleanToken);
     const userInfo = payload ? extractCleanUserInfo(payload) : null;
-    let expiresAt: string | null = null;
-    if (payload?.exp) {
-      expiresAt = new Date(payload.exp * 1000).toISOString();
+    let expMs = payload?.exp ? payload.exp * 1000 : 0;
+    if (expMs <= Date.now()) {
+      // Se não tem exp ou relógio local está com skew, assume válido por no mínimo 5 minutos
+      expMs = Date.now() + 300000;
     }
+    const expiresAt = new Date(expMs).toISOString();
 
     const updated = storage.updateSession({
       token: cleanToken,
@@ -370,13 +452,14 @@ export class AuthService {
     }
 
     this.isRefreshing = true;
-    console.log('Bookmarklet: executando renovação via Keycloak OpenID Connect...');
+    console.log('[ZupLogbook] Executando renovação via Keycloak OpenID Connect...');
 
     try {
       const endpoint = 'https://keycloak-zenity.zup.com.br/auth/realms/zupinternal/protocol/openid-connect/token';
       const body = new URLSearchParams({
         grant_type: 'refresh_token',
-        refresh_token: refreshToken,
+        refresh_token: refreshToken.trim(),
+        client_id: 'realwave_zupper_csp_ui',
       });
 
       let response = await fetch(endpoint, {
@@ -394,58 +477,17 @@ export class AuthService {
         data = await response.json();
       } catch {}
 
-      if (!response.ok && (data.error === 'invalid_client' || data.error_description?.includes('client'))) {
-        body.set('client_id', 'realwave_zupper_csp_ui');
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Accept: '*/*',
-          },
-          credentials: 'include',
-          body: body.toString(),
-        });
-        try {
-          data = await response.json();
-        } catch {}
-      }
-
       if (response.ok && data.access_token) {
-        console.log('Token JWT renovado com sucesso pelo Keycloak no Bookmarklet!');
-        const newAccessToken = data.access_token;
-        const newRefreshToken = data.refresh_token || refreshToken;
-
-        let expiresAt: string | null = null;
-        let refreshExpiresAt: string | null = null;
-
-        if (data.expires_in) {
-          expiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString();
-        }
-        if (data.refresh_expires_in) {
-          refreshExpiresAt = new Date(Date.now() + data.refresh_expires_in * 1000).toISOString();
-        }
-
-        const payload = decodeJwtPayload(newAccessToken);
-        const userInfo = payload ? extractCleanUserInfo(payload) : currentSession.user;
-
-        const updated = storage.updateSession({
-          token: newAccessToken,
-          refreshToken: newRefreshToken,
-          user: userInfo,
-          lastLogin: new Date().toISOString(),
-          expiresAt,
-          refreshExpiresAt,
-          isExpired: false,
-        });
-
-        this.notify(updated);
+        console.log('[ZupLogbook] Token JWT renovado com sucesso pelo Keycloak no Bookmarklet!');
+        this.handleKeycloakTokenResponse(data);
         return true;
       } else {
-        console.warn('Falha na renovação via Keycloak no Bookmarklet:', data);
-        return false;
+        console.warn('[ZupLogbook] Falha na renovação via Keycloak token endpoint:', data);
+        const ssoSuccess = await this.triggerSilentSsoCheck();
+        return ssoSuccess;
       }
     } catch (e: any) {
-      console.error('Erro ao chamar token endpoint no Bookmarklet:', e.message);
+      console.error('[ZupLogbook] Erro ao chamar token endpoint:', e.message);
       return false;
     } finally {
       this.isRefreshing = false;
