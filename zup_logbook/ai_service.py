@@ -57,13 +57,18 @@ class AiService:
         if settings.get("stackspotToken") and settings["stackspotToken"].strip():
             return settings["stackspotToken"].strip()
 
-        if self.stackspot_token_cache and time.time() < (self.stackspot_token_cache["expiresAt"] - 60):
-            return self.stackspot_token_cache["token"]
-
         realm = (settings.get("stackspotRealm") or "zup").strip()
-        token_url = f"https://idm.stackspot.com/{realm}/oidc/oauth/token"
         client_id = (settings.get("stackspotClientId") or "").strip()
         client_secret = (settings.get("stackspotClientSecret") or "").strip()
+
+        if self.stackspot_token_cache and time.time() < (self.stackspot_token_cache["expiresAt"] - 60):
+            if (
+                self.stackspot_token_cache.get("clientId") == client_id
+                and self.stackspot_token_cache.get("realm") == realm
+            ):
+                return self.stackspot_token_cache["token"]
+
+        token_url = f"https://idm.stackspot.com/{realm}/oidc/oauth/token"
 
         if not client_id or not client_secret:
             raise ValueError("Credenciais da StackSpot AI não configuradas.")
@@ -90,8 +95,123 @@ class AiService:
         self.stackspot_token_cache = {
             "token": access_token,
             "expiresAt": time.time() + expires_in,
+            "clientId": client_id,
+            "realm": realm,
         }
         return access_token
+
+    def test_connection(self, custom_settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        settings = storage.get_settings()
+        if custom_settings and isinstance(custom_settings, dict):
+            settings = {**settings, **custom_settings}
+
+        provider = settings.get("aiProvider") or "stackspot"
+
+        try:
+            if provider == "stackspot":
+                has_pat = bool(settings.get("stackspotToken") and settings["stackspotToken"].strip())
+                has_oauth = bool(settings.get("stackspotClientId") and settings.get("stackspotClientSecret"))
+
+                if not has_pat and not has_oauth:
+                    return {
+                        "success": False,
+                        "message": "Nenhuma credencial configurada. Informe o Personal Access Token (PAT) ou Client ID e Client Secret da StackSpot.",
+                    }
+
+                access_token = self._get_stackspot_access_token(settings)
+
+                # Ping no Chat API para validar permissões do token
+                test_url = "https://genai-code-buddy-api.stackspot.com/v1/chat"
+                test_body = {
+                    "streaming": False,
+                    "messages": [{"role": "user", "content": "ping"}],
+                }
+                res = requests.post(
+                    test_url,
+                    headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+                    json=test_body,
+                    timeout=(5, 12),
+                )
+                if res.ok:
+                    auth_type = (
+                        "Personal Access Token (PAT)"
+                        if has_pat
+                        else f"OAuth2 Client Credentials (realm: {settings.get('stackspotRealm') or 'zup'})"
+                    )
+                    return {
+                        "success": True,
+                        "message": f"Conexão com StackSpot AI validada com sucesso via {auth_type}!",
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"Erro na API StackSpot ({res.status_code}): {res.text}",
+                    }
+
+            elif provider == "gemini":
+                api_key = (settings.get("aiApiKey") or "").strip()
+                if not api_key:
+                    return {
+                        "success": False,
+                        "message": "Chave de API do Google Gemini não configurada.",
+                    }
+                model = settings.get("aiModel") or "gemini-2.5-flash"
+                endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+                body = {
+                    "contents": [{"role": "user", "parts": [{"text": "ping"}]}],
+                    "generationConfig": {"maxOutputTokens": 5},
+                }
+                res = requests.post(endpoint, headers={"Content-Type": "application/json"}, json=body, timeout=(5, 12))
+                if res.ok:
+                    return {
+                        "success": True,
+                        "message": f"Conexão com Google Gemini ({model}) validada com sucesso!",
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"Erro na API do Gemini ({res.status_code}): {res.text}",
+                    }
+
+            elif provider == "openai":
+                api_key = (settings.get("aiApiKey") or "").strip()
+                if not api_key:
+                    return {
+                        "success": False,
+                        "message": "Chave de API da OpenAI não configurada.",
+                    }
+                model = settings.get("aiModel") or "gpt-4o-mini"
+                body = {
+                    "model": model,
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_tokens": 5,
+                }
+                res = requests.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                    json=body,
+                    timeout=(5, 12),
+                )
+                if res.ok:
+                    return {
+                        "success": True,
+                        "message": f"Conexão com OpenAI ({model}) validada com sucesso!",
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"Erro na API da OpenAI ({res.status_code}): {res.text}",
+                    }
+
+            return {
+                "success": False,
+                "message": f"Provedor de IA desconhecido: {provider}",
+            }
+        except Exception as err:
+            return {
+                "success": False,
+                "message": f"Falha ao conectar com o provedor de IA: {str(err)}",
+            }
 
     def _build_full_prompt(
         self,

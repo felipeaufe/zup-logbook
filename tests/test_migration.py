@@ -47,10 +47,26 @@ class TestZupLogbookPython(unittest.TestCase):
         methods = [
             "getSession", "startLogin", "cancelLogin", "setManualToken",
             "refreshToken", "logout", "getSettings", "saveSettings",
-            "processRelato", "submitLogbook", "getCompetences"
+            "processRelato", "testAiConnection", "submitLogbook", "getCompetences"
         ]
         for m in methods:
             self.assertTrue(hasattr(bridge_api, m), f"Method {m} missing on bridge_api")
+
+    def test_ai_test_connection_validation(self):
+        # Sem credenciais na StackSpot
+        res = ai_service.test_connection({"aiProvider": "stackspot", "stackspotToken": "", "stackspotClientId": ""})
+        self.assertFalse(res["success"])
+        self.assertIn("Nenhuma credencial configurada", res["message"])
+
+        # Sem API key no Gemini
+        res_gemini = ai_service.test_connection({"aiProvider": "gemini", "aiApiKey": ""})
+        self.assertFalse(res_gemini["success"])
+        self.assertIn("Chave de API do Google Gemini não configurada", res_gemini["message"])
+
+        # Sem API key na OpenAI
+        res_openai = ai_service.test_connection({"aiProvider": "openai", "aiApiKey": ""})
+        self.assertFalse(res_openai["success"])
+        self.assertIn("Chave de API da OpenAI não configurada", res_openai["message"])
 
 if __name__ == "__main__":
     unittest.main()

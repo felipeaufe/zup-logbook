@@ -105,6 +105,9 @@ class BridgeAPI:
     def processRelato(self, userInput: str, history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         return ai_service.process_relato(userInput, history or [])
 
+    def testAiConnection(self, settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        return ai_service.test_connection(settings)
+
     def submitLogbook(self, draft: Dict[str, Any]) -> Dict[str, Any]:
         return api_client.submit_logbook(draft)
 

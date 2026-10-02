@@ -25,6 +25,7 @@ export interface ElectronAPI {
   getSettings: () => Promise<AppSettings>;
   saveSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>;
   processRelato: (userInput: string, history: ChatMessage[]) => Promise<{ message: string; draft?: LogbookDraft }>;
+  testAiConnection: (settings?: Partial<AppSettings>) => Promise<{ success: boolean; message: string }>;
   submitLogbook: (draft: LogbookDraft) => Promise<SubmissionResult>;
   getCompetences: (forceRefresh?: boolean) => Promise<CompetenceItem[]>;
   onAuthStatusChanged: (callback: (session: AuthSession) => void) => () => void;
@@ -182,6 +183,14 @@ export const pythonBridgeAPI: ElectronAPI = {
       return await api.processRelato(userInput, history);
     }
     throw new Error('Serviço Python de IA não conectado.');
+  },
+
+  async testAiConnection(settings?: Partial<AppSettings>): Promise<{ success: boolean; message: string }> {
+    const api = await getPyApi();
+    if (api && api.testAiConnection) {
+      return await api.testAiConnection(settings);
+    }
+    return { success: false, message: 'Serviço Python de IA não conectado.' };
   },
 
   async submitLogbook(draft: LogbookDraft): Promise<SubmissionResult> {

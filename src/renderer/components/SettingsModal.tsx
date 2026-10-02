@@ -52,6 +52,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [copiedToken, setCopiedToken] = useState(false);
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
   const [refreshFeedback, setRefreshFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [isTestingAi, setIsTestingAi] = useState(false);
+  const [aiTestFeedback, setAiTestFeedback] = useState<{ success: boolean; message: string } | null>(null);
   const [isProviderSelectOpen, setIsProviderSelectOpen] = useState(false);
   const providerSelectRef = useRef<HTMLDivElement>(null);
 
@@ -104,6 +106,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     } finally {
       setIsRefreshingToken(false);
       setTimeout(() => setRefreshFeedback(null), 5000);
+    }
+  };
+
+  const handleTestAiConnection = async () => {
+    if (!window.electronAPI) return;
+    setIsTestingAi(true);
+    setAiTestFeedback(null);
+    try {
+      const res = await window.electronAPI.testAiConnection(formData);
+      setAiTestFeedback(res);
+    } catch (err: any) {
+      setAiTestFeedback({
+        success: false,
+        message: `Erro ao testar conexão: ${err.message}`,
+      });
+    } finally {
+      setIsTestingAi(false);
     }
   };
 
@@ -415,6 +434,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Teste de Conexão com Provedor de IA */}
+              <div className="pt-3 border-t border-[#262A3B] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-semibold text-gray-200">Testar Conexão com a IA</span>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Verifica a autenticação e conectividade com o provedor selecionado
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleTestAiConnection}
+                    disabled={isTestingAi}
+                    className="px-4 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 hover:border-purple-500/70 text-sm font-semibold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm hover:shadow-purple-500/10"
+                  >
+                    {isTestingAi ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
+                        <span>Testando Conexão...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-purple-400" />
+                        <span>Testar Conexão</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {aiTestFeedback && (
+                  <div
+                    className={`p-3.5 rounded-xl border text-sm flex items-start gap-2.5 transition-all ${
+                      aiTestFeedback.success
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                        : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                    }`}
+                  >
+                    {aiTestFeedback.success ? (
+                      <Check className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+                    )}
+                    <span className="leading-relaxed">{aiTestFeedback.message}</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
