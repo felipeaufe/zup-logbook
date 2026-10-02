@@ -89,8 +89,8 @@ function getAuthToken(): string | null {
 export function mountZupLogbook() {
   const existing = document.getElementById(HOST_ID);
   if (existing) {
-    existing.style.display = existing.style.display === 'none' ? 'flex' : 'none';
-    if (existing.style.display === 'flex') {
+    existing.style.display = existing.style.display === 'none' ? 'block' : 'none';
+    if (existing.style.display === 'block') {
       const textarea = existing.shadowRoot?.querySelector('textarea');
       textarea?.focus();
     }
@@ -102,10 +102,6 @@ export function mountZupLogbook() {
   host.style.position = 'fixed';
   host.style.inset = '0';
   host.style.zIndex = '2147483647';
-  host.style.display = 'flex';
-  host.style.alignItems = 'center';
-  host.style.justifyContent = 'center';
-  host.style.background = 'rgba(0, 0, 0, 0.45)';
   host.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
   const shadow = host.attachShadow({ mode: 'open' });
@@ -113,6 +109,14 @@ export function mountZupLogbook() {
   const style = document.createElement('style');
   style.textContent = `
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
     .modal {
       width: 360px;
       height: 360px;
@@ -125,6 +129,7 @@ export function mountZupLogbook() {
       padding: 16px;
       gap: 10px;
       color: #e2e8f0;
+      user-select: none;
     }
     .header {
       display: flex;
@@ -162,6 +167,7 @@ export function mountZupLogbook() {
       font-family: monospace;
       resize: none;
       outline: none;
+      user-select: text;
     }
     textarea:focus {
       border-color: #6366f1;
@@ -211,6 +217,9 @@ export function mountZupLogbook() {
   `;
   shadow.appendChild(style);
 
+  const backdrop = document.createElement('div');
+  backdrop.className = 'backdrop';
+
   const modal = document.createElement('div');
   modal.className = 'modal';
   modal.innerHTML = `
@@ -222,7 +231,9 @@ export function mountZupLogbook() {
     <div class="status"></div>
     <button class="submit-btn" type="button" disabled>Enviar</button>
   `;
-  shadow.appendChild(modal);
+
+  backdrop.appendChild(modal);
+  shadow.appendChild(backdrop);
 
   const closeBtn = modal.querySelector('.close-btn') as HTMLButtonElement;
   const textarea = modal.querySelector('textarea') as HTMLTextAreaElement;
@@ -233,10 +244,17 @@ export function mountZupLogbook() {
     host.style.display = 'none';
   };
 
-  closeBtn.onclick = close;
+  closeBtn.onclick = (e) => {
+    e.stopPropagation();
+    close();
+  };
 
-  host.onclick = (e) => {
-    if (e.target === host) close();
+  modal.onclick = (e) => {
+    e.stopPropagation();
+  };
+
+  backdrop.onclick = (e) => {
+    if (e.target === backdrop) close();
   };
 
   const showStatus = (type: 'success' | 'error', msg: string) => {
@@ -310,7 +328,10 @@ export function mountZupLogbook() {
     }
   };
 
-  submitBtn.onclick = send;
+  submitBtn.onclick = (e) => {
+    e.stopPropagation();
+    send();
+  };
 
   textarea.onkeydown = (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
