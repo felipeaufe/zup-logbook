@@ -45,14 +45,14 @@ class ApiClient:
 
         try:
             print(f"[API] Consultando competências no People Zup ({endpoint})...")
-            res = requests.get(endpoint, headers=headers, timeout=12)
+            res = requests.get(endpoint, headers=headers, timeout=(5, 12))
 
             if res.status_code in (400, 401):
                 print(f"[API] {res.status_code} ao buscar competências. Tentando refresh...")
                 if auth_manager.refresh_access_token():
                     fresh_session = storage.get_session()
                     headers["authorization"] = f"Bearer {fresh_session['token']}"
-                    res = requests.get(endpoint, headers=headers, timeout=12)
+                    res = requests.get(endpoint, headers=headers, timeout=(5, 12))
 
             if res.ok:
                 data = res.json()
@@ -135,7 +135,7 @@ class ApiClient:
 
         print(f"[API] Enviando diário para {target_url}...")
         try:
-            res = requests.post(target_url, headers=headers, json=payload, timeout=20)
+            res = requests.post(target_url, headers=headers, json=payload, timeout=(5, 20))
             res_text = res.text
             try:
                 res_data = res.json()

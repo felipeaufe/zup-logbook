@@ -77,7 +77,7 @@ class AiService:
                 "client_id": client_id,
                 "client_secret": client_secret,
             },
-            timeout=15,
+            timeout=(5, 15),
         )
 
         if not res.ok:
@@ -181,7 +181,7 @@ Responda OBRIGATORIAMENTE em formato JSON estrito:
                 qc_url,
                 headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
                 json={"input_data": f"{system_prompt}\n\nRelato do Zupper:\n{user_input}"},
-                timeout=40,
+                timeout=(5, 35),
             )
             if not res.ok:
                 raise RuntimeError(f"StackSpot Quick Command retornou {res.status_code}: {res.text}")
@@ -201,7 +201,7 @@ Responda OBRIGATORIAMENTE em formato JSON estrito:
             chat_url,
             headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
             json={"streaming": False, "messages": chat_messages},
-            timeout=40,
+            timeout=(5, 35),
         )
         if not res.ok:
             raise RuntimeError(f"StackSpot Chat API retornou {res.status_code}: {res.text}")
@@ -233,7 +233,7 @@ Responda OBRIGATORIAMENTE em formato JSON estrito:
             "generationConfig": {"response_mime_type": "application/json", "temperature": 0.3},
         }
 
-        res = requests.post(endpoint, headers={"Content-Type": "application/json"}, json=body, timeout=40)
+        res = requests.post(endpoint, headers={"Content-Type": "application/json"}, json=body, timeout=(5, 35))
         if not res.ok:
             raise RuntimeError(res.text)
 
@@ -269,7 +269,7 @@ Responda OBRIGATORIAMENTE em formato JSON estrito:
             "https://api.openai.com/v1/chat/completions",
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
             json=body,
-            timeout=40,
+            timeout=(5, 35),
         )
         if not res.ok:
             raise RuntimeError(res.text)
