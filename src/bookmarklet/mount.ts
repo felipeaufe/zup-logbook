@@ -57,59 +57,66 @@ function findCompetence(name: string) {
 }
 
 function parseLogbookText(raw: string) {
-  const text = raw.trim();
-  const descIdx = text.search(/descri[cç][aã]o:/i);
-  const compIdx = text.search(/compet[eê]ncias:/i);
+  let clean = raw.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '').trim();
 
-  let title = '';
-  if (descIdx !== -1) {
-    const rawTitlePart = text.slice(0, descIdx);
-    const lines = rawTitlePart.replace(/t[ií]tulo:\s*/i, '').trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    title = lines[0] || '';
-  } else {
-    title = text.split(/\r?\n/)[0]?.replace(/t[ií]tulo:\s*/i, '').trim() || '';
-  }
-
-  let descText = '';
-  if (descIdx !== -1) {
-    descText = compIdx !== -1 ? text.slice(descIdx, compIdx) : text.slice(descIdx);
-    descText = descText.replace(/descri[cç][aã]o:\s*/i, '').trim();
-  }
-
+  // 1. Extrai Competências
+  const compMatch = clean.match(/compet[eê]ncias:\s*([\s\S]*)$/i);
   let compText = '';
-  if (compIdx !== -1) {
-    compText = text.slice(compIdx).replace(/compet[eê]ncias:\s*/i, '').trim();
+  if (compMatch) {
+    compText = compMatch[1].trim();
+    clean = clean.slice(0, compMatch.index).trim();
   }
 
-  const rawBlocks = descText ? descText.split(/[\r\n]+\s*-{3,}\s*[\r\n]+/) : [];
+  // 2. Extrai Título
+  let title = '';
+  const descIdx = clean.search(/descri[cç][aã]o:/i);
+  if (descIdx !== -1) {
+    title = clean.slice(0, descIdx).replace(/t[ií]tulo:\s*/i, '').trim();
+    clean = clean.slice(descIdx).replace(/descri[cç][aã]o:\s*/i, '').trim();
+  } else {
+    title = clean.split(/\r?\n/)[0]?.replace(/t[ií]tulo:\s*/i, '').trim() || '';
+  }
+  title = title.split(/\r?\n/)[0]?.trim() || '';
+
+  // 3. Localiza tópicos oficiais da Zup por expressão regular flexível
+  const topicPattern = /(Resultado\/impacto(?:\s*\(momento atual\))?:?|Atitude e comportamento:?|Conhecimento T[eé]cnico da Pr[aá]tica:?|Aprendizado Tech:?|Expectativas de Entregas:?|Coment[aá]rios Adicionais(?: e Feedback Recebido)?:?)/gi;
+
+  const matches: { index: number; header: string; end: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = topicPattern.exec(clean)) !== null) {
+    matches.push({ index: m.index, header: m[0], end: m.index + m[0].length });
+  }
+
   const formattedContent: any[] = [];
   const plainBlocks: string[] = [];
 
-  for (let i = 0; i < rawBlocks.length; i++) {
-    const block = rawBlocks[i].trim();
-    if (!block) continue;
-    const lines = block.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    if (!lines.length) continue;
+  for (let i = 0; i < matches.length; i++) {
+    const cur = matches[i];
+    const nextStart = i + 1 < matches.length ? matches[i + 1].index : clean.length;
+    let body = clean.slice(cur.end, nextStart).trim();
 
-    const topicTitle = lines[0];
-    const topicDesc = lines.slice(1).join('\n');
+    // Remove qualquer separador residual
+    body = body.replace(/^-+\s*|\s*-+$/g, '').trim();
+
+    let standardHeader = cur.header.trim();
+    if (!standardHeader.endsWith(':')) standardHeader += ':';
 
     formattedContent.push({
       type: 'paragraph',
-      children: [{ text: topicTitle, bold: true }],
+      children: [{ text: standardHeader, bold: true }],
     });
 
-    if (topicDesc) {
+    if (body) {
       formattedContent.push({
         type: 'paragraph',
-        children: [{ text: topicDesc }],
+        children: [{ text: body }],
       });
-      plainBlocks.push(`${topicTitle}\n${topicDesc}`);
+      plainBlocks.push(`${standardHeader}\n${body}`);
     } else {
-      plainBlocks.push(topicTitle);
+      plainBlocks.push(standardHeader);
     }
 
-    if (i < rawBlocks.length - 1) {
+    if (i < matches.length - 1) {
       formattedContent.push({
         type: 'paragraph',
         children: [{ text: '', bold: true }],
@@ -117,9 +124,10 @@ function parseLogbookText(raw: string) {
     }
   }
 
+  // 4. Mapeia competências
   const competences: any[] = [];
   if (compText) {
-    const compLines = compText.split(/[\r\n]+/).map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean);
+    const compLines = compText.split(/[\r\n,]+/).map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean);
     for (const line of compLines) {
       const match = findCompetence(line);
       if (match) competences.push(match);
@@ -132,7 +140,7 @@ function parseLogbookText(raw: string) {
     content: plainBlocks.join('\n\n'),
     isPerformanceReview: true,
     metadata: {
-      templateFor: /lideran[cç]a/i.test(text) && !/n[aã]o\s*lideran[cç]a/i.test(text) ? 'LEADERSHIP' : 'NON_LEADERSHIP',
+      templateFor: /lideran[cç]a/i.test(raw) && !/n[aã]o\s*lideran[cç]a/i.test(raw) ? 'LEADERSHIP' : 'NON_LEADERSHIP',
     },
     competences,
   };
