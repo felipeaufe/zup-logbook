@@ -54,13 +54,39 @@ export class AiService {
     }
   }
 
+  private cleanCred(val?: string): string {
+    return (val || '').replace(/^["'`]|["'`]$/g, '').trim();
+  }
+
+  /**
+   * Testa as credenciais da StackSpot AI informadas pelo usuário
+   */
+  public async testStackSpotConnection(
+    settings: Partial<AppSettings>
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      this.stackspotTokenCache = null; // força requisição limpa
+      const token = await this.getStackSpotAccessToken(settings);
+      if (!token) {
+        return { success: false, message: 'Nenhum token foi retornado pelo provedor.' };
+      }
+      return {
+        success: true,
+        message: 'Conexão bem-sucedida! Token de acesso StackSpot obtido e autenticado.',
+      };
+    } catch (err: any) {
+      return { success: false, message: err.message };
+    }
+  }
+
   /**
    * Obtém token de acesso para a StackSpot AI (suporta Personal Access Token direto ou OAuth2 Client Credentials)
    */
   private async getStackSpotAccessToken(settings: any): Promise<string> {
     // 1. Se o usuário forneceu um Personal Access Token direto, use-o diretamente!
-    if (settings.stackspotToken && settings.stackspotToken.trim()) {
-      return settings.stackspotToken.trim();
+    const directToken = this.cleanCred(settings.stackspotToken);
+    if (directToken) {
+      return directToken;
     }
 
     // 2. Se já possuímos token em cache válido
@@ -68,10 +94,10 @@ export class AiService {
       return this.stackspotTokenCache.token;
     }
 
-    const realm = (settings.stackspotRealm || 'zup').trim();
+    const realm = this.cleanCred(settings.stackspotRealm) || 'zup';
     const tokenUrl = `https://idm.stackspot.com/${realm}/oidc/oauth/token`;
-    const clientId = (settings.stackspotClientId || '').trim();
-    const clientSecret = (settings.stackspotClientSecret || '').trim();
+    const clientId = this.cleanCred(settings.stackspotClientId);
+    const clientSecret = this.cleanCred(settings.stackspotClientSecret);
 
     if (!clientId || !clientSecret) {
       throw new Error(
@@ -79,14 +105,15 @@ export class AiService {
       );
     }
 
-    console.log(`Solicitando token OAuth2 da StackSpot para realm: ${realm}`);
+    console.log(`[StackSpot Auth] Solicitando token OAuth2 para realm: ${realm}`);
 
+    // Método 1: Body x-www-form-urlencoded com client_id e client_secret (padrão StackSpot)
     const bodyParams = new URLSearchParams();
     bodyParams.append('grant_type', 'client_credentials');
     bodyParams.append('client_id', clientId);
     bodyParams.append('client_secret', clientSecret);
 
-    const res = await fetch(tokenUrl, {
+    let res = await fetch(tokenUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -94,9 +121,37 @@ export class AiService {
       body: bodyParams.toString(),
     });
 
+    // Método 2 (Fallback): Basic Auth Header se 401 (compatibilidade RFC 6749 para Keycloak)
+    if (res.status === 401) {
+      try {
+        const basicAuth = btoa(`${clientId}:${clientSecret}`);
+        const basicBody = new URLSearchParams();
+        basicBody.append('grant_type', 'client_credentials');
+
+        const basicRes = await fetch(tokenUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Authorization: `Basic ${basicAuth}`,
+          },
+          body: basicBody.toString(),
+        });
+
+        if (basicRes.ok) {
+          res = basicRes;
+        }
+      } catch (fallbackErr) {
+        console.warn('[StackSpot Auth] Fallback Basic Auth falhou:', fallbackErr);
+      }
+    }
+
     if (!res.ok) {
       const err = await res.text();
-      throw new Error(`Falha na autenticação StackSpot (${res.status}): ${err}`);
+      let hint = '';
+      if (res.status === 401 && err.includes('invalid_client')) {
+        hint = ` -> Verifique: 1) Se o Realm '${realm}' está correto (ex: 'zup' ou o slug da sua conta/workspace); 2) Se o Client ID e Client Secret não contêm aspas ou caracteres extras; 3) Se as credenciais foram criadas nesse realm. Como alternativa rápida, você pode gerar um Personal Access Token (PAT) no portal da StackSpot e colar no campo PAT acima.`;
+      }
+      throw new Error(`Falha na autenticação StackSpot (${res.status}): ${err}${hint}`);
     }
 
     const data = await res.json();

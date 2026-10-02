@@ -8,6 +8,7 @@ import {
 } from '../../data/templates';
 
 import { authService } from '../../services/auth';
+import { aiService } from '../../services/ai-service';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -37,6 +38,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [copiedToken, setCopiedToken] = useState(false);
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
   const [refreshFeedback, setRefreshFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [isTestingStackSpot, setIsTestingStackSpot] = useState(false);
+  const [stackspotTestResult, setStackspotTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const cleanCred = (val?: string) => (val || '').replace(/^["'`]|["'`]$/g, '').trim();
 
   useEffect(() => {
     setFormData(settings);
@@ -48,7 +53,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    onSaveSettings(formData);
+    const sanitized = {
+      ...formData,
+      stackspotClientId: cleanCred(formData.stackspotClientId),
+      stackspotClientSecret: cleanCred(formData.stackspotClientSecret),
+      stackspotRealm: cleanCred(formData.stackspotRealm) || 'zup',
+      stackspotToken: cleanCred(formData.stackspotToken),
+    };
+    onSaveSettings(sanitized);
     if (
       (manualToken && manualToken !== session.token) ||
       (manualRefreshToken && manualRefreshToken !== session.refreshToken)
@@ -56,6 +68,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       onSaveManualToken(manualToken.trim(), manualRefreshToken.trim() || undefined);
     }
     onClose();
+  };
+
+  const handleTestStackSpot = async () => {
+    setIsTestingStackSpot(true);
+    setStackspotTestResult(null);
+    try {
+      const sanitized = {
+        ...formData,
+        stackspotClientId: cleanCred(formData.stackspotClientId),
+        stackspotClientSecret: cleanCred(formData.stackspotClientSecret),
+        stackspotRealm: cleanCred(formData.stackspotRealm) || 'zup',
+        stackspotToken: cleanCred(formData.stackspotToken),
+      };
+      const result = await aiService.testStackSpotConnection(sanitized);
+      setStackspotTestResult(result);
+    } catch (err: any) {
+      setStackspotTestResult({ success: false, message: err.message });
+    } finally {
+      setIsTestingStackSpot(false);
+    }
   };
 
   const handleManualRefresh = async () => {
@@ -257,6 +289,48 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       }
                       className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-purple-500 font-mono"
                     />
+                    <span className="text-xs text-gray-500 mt-1 block">
+                      Padrão: <code>zup</code>. Se o seu time utiliza outro realm/slug no IDM da StackSpot, altere aqui.
+                    </span>
+                  </div>
+
+                  {/* Botão de teste de conexão com a StackSpot */}
+                  <div className="pt-2 border-t border-[#262A3B]">
+                    <button
+                      type="button"
+                      disabled={isTestingStackSpot}
+                      onClick={handleTestStackSpot}
+                      className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl text-sm font-medium text-purple-300 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-700/40 transition-colors disabled:opacity-50"
+                    >
+                      {isTestingStackSpot ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
+                          <span>Testando Autenticação na StackSpot...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 text-purple-400" />
+                          <span>Testar Conexão / Validar Credenciais</span>
+                        </>
+                      )}
+                    </button>
+
+                    {stackspotTestResult && (
+                      <div
+                        className={`mt-3 p-3 rounded-xl border text-xs leading-relaxed flex items-start gap-2.5 ${
+                          stackspotTestResult.success
+                            ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
+                            : 'bg-red-950/40 border-red-500/30 text-red-300'
+                        }`}
+                      >
+                        {stackspotTestResult.success ? (
+                          <Check className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+                        )}
+                        <div className="flex-1 break-words">{stackspotTestResult.message}</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
