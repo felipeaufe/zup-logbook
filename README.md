@@ -28,34 +28,78 @@ Um aplicativo desktop moderno e intuitivo construído em **Python** (com **pyweb
 
 ---
 
-## 📦 Como Executar
+## 📦 Preparação do Ambiente e Execução (Após o Clone)
 
 ### 1. Pré-requisitos
-- Python 3.10 ou superior
-- Node.js e pnpm (ou npm)
 
-### 2. Configurar o Ambiente Python
-```bash
-# Criar o ambiente virtual com acesso a pacotes do sistema (WebKitGTK/gi)
-python3 -m venv --system-site-packages .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+- **Python**: 3.10 ou superior
+- **Node.js**: 18+ e gerenciador de pacotes (`pnpm` ou `npm`)
+- **Dependências de Sistema (apenas Linux)**:
+  - **Fedora / RHEL**:
+    ```bash
+    sudo dnf install -y python3-gobject webkit2gtk4.1 gtk3
+    ```
+  - **Ubuntu / Debian**:
+    ```bash
+    sudo apt update && sudo apt install -y python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-webkit2-4.1
+    ```
+  - *(No Windows e macOS não são necessários pacotes adicionais do sistema, pois o WebView2 e WebKit Cocoa já são nativos).*
 
-### 3. Instalar Dependências e Compilar o Frontend
-```bash
-pnpm install
-pnpm build
-```
+---
 
-### 4. Iniciar a Aplicação
+### 2. Forma Rápida (Bootstrap Automático)
+
+Após clonar o repositório e instalar as dependências do frontend:
+
 ```bash
+# 1. Instalar dependências do frontend
+pnpm install   # ou npm install
+
+# 2. Executar o bootstrap automático
 python3 run.py
 ```
 
-Ou via script npm:
+> O script `run.py` detectará a ausência do ambiente virtual, criará o `.venv` automaticamente com `--system-site-packages`, instalará as dependências do `requirements.txt`, compilará o frontend se a pasta `dist/` não existir e iniciará a aplicação.
+
+---
+
+### 3. Forma Manual Passo a Passo
+
 ```bash
-pnpm start
+# 1. Instalar dependências do frontend e compilar
+pnpm install
+pnpm build
+
+# 2. Criar e ativar o ambiente virtual Python
+python3 -m venv --system-site-packages .venv
+source .venv/bin/activate  # No Windows: .venv\Scripts\activate
+
+# 3. Instalar dependências Python
+pip install -r requirements.txt
+
+# 4. Iniciar a aplicação
+python3 run.py
+```
+
+---
+
+### 4. Como Gerar o Binário Standalone (Executável)
+
+Para gerar um executável independente que não necessita de Python instalado na máquina:
+
+```bash
+python3 build_binary.py
+# ou
+pnpm build:bin
+```
+
+O binário final será criado em:
+- **Linux / macOS**: `dist_bin/zup-logbook`
+- **Windows**: `dist_bin/zup-logbook.exe`
+
+Para executar:
+```bash
+./dist_bin/zup-logbook
 ```
 
 ---
