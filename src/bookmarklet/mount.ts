@@ -57,7 +57,13 @@ function findCompetence(name: string) {
 }
 
 function parseInput(raw: string) {
-  let clean = raw.trim().replace(/^```[a-z0-9_-]*\s*/i, '').replace(/\s*```$/, '').trim();
+  let clean = raw
+    .trim()
+    .replace(/^```[a-z0-9_-]*\s*/i, '')
+    .replace(/\s*```$/, '')
+    .replace(/\[cite:[^\]]*\]/gi, '')
+    .replace(/\[\d+(?:,\s*\d+)*\]/g, '')
+    .trim();
 
   // 1. Verifica se é Markdown padrão com seções ##
   const hasMarkdownHeaders = /^##+\s+/m.test(clean);
