@@ -4,7 +4,6 @@ import random
 import string
 import time
 import threading
-import webbrowser
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, Callable
@@ -48,30 +47,6 @@ def extract_clean_user_info(payload: dict) -> Dict[str, Optional[str]]:
         "name": candidate_name,
         "email": email or None,
     }
-
-def is_auth_related_url(url: str) -> bool:
-    """Verifica se uma URL pertence ao fluxo legítimo de autenticação do People Zup / SSO"""
-    if not url:
-        return False
-    u = url.lower()
-    auth_keywords = [
-        "keycloak",
-        "openid-connect",
-        "people.zup.com.br",
-        "zenity.zup.com.br",
-        "stackspot.com",
-        "cyberark",
-        "microsoftonline.com",
-        "live.com",
-        "msftauth.net",
-        "msftauthimages.net",
-        "google.com/accounts",
-        "accounts.google",
-        "okta.com",
-        "pingidentity",
-        "realwave",
-    ]
-    return any(kw in u for kw in auth_keywords)
 
 class AuthManager:
     def __init__(self):
@@ -173,12 +148,10 @@ class AuthManager:
                 login_wv.set_hexpand(True)
                 login_wv.set_vexpand(True)
 
-                # Cor de fundo escura oficial para evitar qualquer flicker cinza
+                # Cor de fundo escura oficial
                 bg_color = Gdk.RGBA()
                 bg_color.parse("#0D0E12")
                 login_wv.set_background_color(bg_color)
-
-                # ===================== SISTEMA ANTI-TRAVA / ANTI-BLOCK =====================
 
                 # 1. Listener de navegação concluída
                 def on_load_changed(wv, load_event):
@@ -188,59 +161,44 @@ class AuthManager:
                             if uri:
                                 self._check_and_handle_url(uri, wv)
                     except Exception as e:
-                        print(f"[Auth Anti-Trava] Aviso load-changed: {e}")
+                        print(f"[Auth] Aviso load-changed: {e}")
 
-                # 2. Interceptador de políticas de navegação e links externos
+                # 2. Interceptador de políticas de navegação: Toda a jornada (Google, Keycloak, 2FA) na mesma tela!
                 def on_decide_policy(wv, decision, decision_type):
                     try:
-                        if decision_type == WebKit2.PolicyDecisionType.NAVIGATION_ACTION:
+                        if decision_type in (
+                            WebKit2.PolicyDecisionType.NAVIGATION_ACTION,
+                            WebKit2.PolicyDecisionType.NEW_WINDOW_ACTION,
+                        ):
                             nav_action = decision.get_navigation_action()
                             uri = nav_action.get_request().get_uri()
                             if not uri:
                                 decision.use()
                                 return False
 
-                            # Verifica se o link é a conclusão da autenticação com tokens
+                            # Verifica se alcançou o redirect final de sucesso com tokens
                             if self._check_and_handle_url(uri, wv):
                                 decision.ignore()
                                 return True
 
-                            # Se o link abre em _blank, ou se for clique do usuário em link não-autenticação
+                            # Se o link tenta abrir em nova janela (_blank ou NEW_WINDOW_ACTION),
+                            # força abertura NA MESMA TELA EMBUTIDA sem sair do app
                             target_frame = nav_action.get_frame_name()
-                            is_new_window = target_frame in ("_blank", "_new")
-                            is_user_click = nav_action.get_mouse_button() > 0
-
-                            if is_new_window or (is_user_click and not is_auth_related_url(uri)):
-                                print(f"[Auth Anti-Trava] Link externo interceptado: {uri} (abrindo no navegador)")
-                                webbrowser.open(uri)
+                            if decision_type == WebKit2.PolicyDecisionType.NEW_WINDOW_ACTION or target_frame in ("_blank", "_new"):
+                                print(f"[Auth] Carregando link na mesma tela embutida: {uri}")
+                                wv.load_uri(uri)
                                 decision.ignore()
                                 return True
 
+                            # Todas as demais etapas do fluxo (Google SSO, Keycloak, 2FA) rodam dentro da view
                             decision.use()
                             return False
-
-                        elif decision_type == WebKit2.PolicyDecisionType.NEW_WINDOW_ACTION:
-                            nav_action = decision.get_navigation_action()
-                            uri = nav_action.get_request().get_uri()
-                            print(f"[Auth Anti-Trava] Nova janela interceptada: {uri}")
-
-                            if uri and self._check_and_handle_url(uri, wv):
-                                decision.ignore()
-                                return True
-
-                            if uri and is_auth_related_url(uri):
-                                wv.load_uri(uri)
-                            elif uri:
-                                webbrowser.open(uri)
-
-                            decision.ignore()
-                            return True
 
                         elif decision_type == WebKit2.PolicyDecisionType.RESPONSE:
                             decision.use()
                             return False
                     except Exception as err:
-                        print(f"[Auth Anti-Trava] Erro no decide-policy: {err}")
+                        print(f"[Auth] Erro no decide-policy: {err}")
                         try:
                             decision.use()
                         except Exception:
@@ -249,22 +207,20 @@ class AuthManager:
 
                     return False
 
-                # 3. Interceptador de window.open (evita bloquear o WebKit aguardando janela widget)
+                # 3. Interceptador de window.open (força abertura na mesma tela interna)
                 def on_create(wv, action):
                     try:
                         uri = action.get_request().get_uri()
-                        print(f"[Auth Anti-Trava] on_create interceptado: {uri}")
-                        if uri and self._check_and_handle_url(uri, wv):
-                            return None
-                        if uri and is_auth_related_url(uri):
+                        print(f"[Auth] window.open interceptado para carregar na mesma tela: {uri}")
+                        if uri:
+                            if self._check_and_handle_url(uri, wv):
+                                return None
                             wv.load_uri(uri)
-                        elif uri:
-                            webbrowser.open(uri)
                     except Exception as e:
-                        print(f"[Auth Anti-Trava] Erro em on_create: {e}")
+                        print(f"[Auth] Erro em on_create: {e}")
                     return None
 
-                # 4. Interceptador de diálogos JS (alert/confirm/prompt nunca travam o loop GTK)
+                # 4. Diálogos JS automáticos (evita travar o loop GTK com alerts modais)
                 def on_script_dialog(wv, dialog):
                     try:
                         dialog.confirm()
@@ -272,22 +228,17 @@ class AuthManager:
                         pass
                     return True
 
-                # 5. Interceptador de window.close()
+                # 5. Fechamento via script
                 def on_close(wv):
                     self.close_login_window()
                     return True
-
-                # 6. Interceptador de erros de carregamento (não deixa a janela em estado indefinido)
-                def on_load_failed(wv, load_event, failing_uri, error):
-                    print(f"[Auth Anti-Trava] Falha ao carregar {failing_uri}: {error.message}")
-                    return False
 
                 login_wv.connect("load-changed", on_load_changed)
                 login_wv.connect("decide-policy", on_decide_policy)
                 login_wv.connect("create", on_create)
                 login_wv.connect("script-dialog", on_script_dialog)
                 login_wv.connect("close", on_close)
-                login_wv.connect("load-failed", on_load_failed)
+                login_wv.connect("load-failed", lambda *a: False)
                 login_wv.connect("load-failed-with-tls-errors", lambda *a: False)
 
                 self.embedded_login_wv = login_wv
@@ -380,32 +331,36 @@ class AuthManager:
         if not url:
             return False
 
-        if "access_token=" in url or "code=" in url or "id_token=" in url:
+        # Só processa quando o redirect de conclusão alcançar o domínio final do People Zup
+        is_people_callback = ("people.zup.com.br" in url or "career/logbook" in url)
+        has_tokens = ("access_token=" in url or "code=" in url or "id_token=" in url)
+
+        if is_people_callback and has_tokens:
             try:
                 parsed = urlparse(url)
                 fragment_params = parse_qs(parsed.fragment) if parsed.fragment else {}
                 query_params = parse_qs(parsed.query) if parsed.query else {}
 
-                # 1. PRIORIDADE ABSOLUTA: Verificar se o access_token já veio na URL (fluxo hybrid)
+                # 1. PRIORIDADE ABSOLUTA: Verificar se o access_token já veio na URL final
                 access_tokens = fragment_params.get("access_token") or query_params.get("access_token")
                 refresh_tokens = fragment_params.get("refresh_token") or query_params.get("refresh_token")
 
                 if access_tokens and len(access_tokens[0]) > 20:
                     access_token = access_tokens[0]
                     refresh_token = refresh_tokens[0] if refresh_tokens else None
-                    print("[Auth] Access token capturado com sucesso da URL!")
+                    print("[Auth] Access token final do People Zup capturado com sucesso!")
                     self.login_completed = True
                     self.close_login_window()
                     self.handle_token_captured(access_token, refresh_token=refresh_token)
                     return True
 
-                # 2. Se e SOMENTE SE NÃO houver access_token na URL, e houver authorization code:
+                # 2. Se e SOMENTE SE NÃO houver access_token na URL final, e houver authorization code:
                 # Dispara a troca em THREAD SEPARADA para NUNCA travar a interface gráfica (GTK)
                 codes = query_params.get("code") or fragment_params.get("code")
                 if codes and not self.is_exchanging_code and not self.login_completed:
                     code = codes[0]
                     self.is_exchanging_code = True
-                    print("[Auth] Code detectado sem access_token. Disparando troca assíncrona...")
+                    print("[Auth] Code final detectado. Disparando troca assíncrona...")
 
                     def _exchange_worker():
                         try:
