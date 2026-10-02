@@ -21,12 +21,16 @@ class BridgeAPI:
     def emit_event(self, event_name: str, payload: Any):
         if not self._main_window:
             return
-        try:
-            payload_json = json.dumps(payload, ensure_ascii=False)
-            script = f"window.dispatchEvent(new CustomEvent('{event_name}', {{ detail: {payload_json} }}));"
-            self._main_window.evaluate_js(script)
-        except Exception as e:
-            print(f"[Bridge] Erro ao emitir evento {event_name}: {e}")
+
+        def _send():
+            try:
+                payload_json = json.dumps(payload, ensure_ascii=False)
+                script = f"window.dispatchEvent(new CustomEvent('{event_name}', {{ detail: {payload_json} }}));"
+                self._main_window.evaluate_js(script)
+            except Exception as e:
+                print(f"[Bridge] Erro ao emitir evento {event_name}: {e}")
+
+        threading.Thread(target=_send, daemon=True).start()
 
     # ==================== Métodos da API expostos para o JS ====================
 

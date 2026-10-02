@@ -301,6 +301,9 @@ class AuthManager:
 
             def _do_remove():
                 try:
+                    if wv_to_remove:
+                        wv_to_remove.stop_loading()
+                        wv_to_remove.hide()
                     if overlay_ref and wv_to_remove:
                         overlay_ref.remove(wv_to_remove)
                         wv_to_remove.destroy()
@@ -351,7 +354,12 @@ class AuthManager:
                     print("[Auth] Access token final do People Zup capturado com sucesso!")
                     self.login_completed = True
                     self.close_login_window()
-                    self.handle_token_captured(access_token, refresh_token=refresh_token)
+                    threading.Thread(
+                        target=self.handle_token_captured,
+                        args=(access_token,),
+                        kwargs={"refresh_token": refresh_token},
+                        daemon=True,
+                    ).start()
                     return True
 
                 # 2. Se e SOMENTE SE NÃO houver access_token na URL final, e houver authorization code:
