@@ -13,12 +13,19 @@ from pathlib import Path
 def main():
     root = Path(__file__).resolve().parent
     venv_dir = root / ".venv"
-    venv_pyinstaller = venv_dir / "bin" / "pyinstaller"
-    venv_python = venv_dir / "bin" / "python"
+    if sys.platform == "win32":
+        venv_pyinstaller = venv_dir / "Scripts" / "pyinstaller.exe"
+        venv_python = venv_dir / "Scripts" / "python.exe"
+    else:
+        venv_pyinstaller = venv_dir / "bin" / "pyinstaller"
+        venv_python = venv_dir / "bin" / "python"
 
     # Se chamado com o python do sistema mas existe o venv, re-executa no venv
     if venv_python.exists() and sys.prefix != str(venv_dir):
-        os.execv(str(venv_python), [str(venv_python), str(__file__)] + sys.argv[1:])
+        if sys.platform == "win32":
+            sys.exit(subprocess.call([str(venv_python), str(__file__)] + sys.argv[1:]))
+        else:
+            os.execv(str(venv_python), [str(venv_python), str(__file__)] + sys.argv[1:])
 
     print("=" * 60)
     print("🚀  Iniciando processo de build do Zup Logbook")
@@ -44,7 +51,8 @@ def main():
     pyinstaller_bin = str(venv_pyinstaller) if venv_pyinstaller.exists() else shutil.which("pyinstaller")
     if not pyinstaller_bin:
         print(">> Instalando PyInstaller no ambiente virtual...")
-        subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller>=6.0.0"], check=True)
+        python_for_pip = str(venv_python) if venv_python.exists() else sys.executable
+        subprocess.run([python_for_pip, "-m", "pip", "install", "pyinstaller>=6.0.0"], check=True)
         pyinstaller_bin = str(venv_pyinstaller) if venv_pyinstaller.exists() else shutil.which("pyinstaller")
 
     # 3. Empacotamento do Binário

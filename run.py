@@ -12,7 +12,10 @@ from pathlib import Path
 def ensure_venv():
     root = Path(__file__).resolve().parent
     venv_dir = root / ".venv"
-    venv_python = venv_dir / "bin" / "python"
+    if sys.platform == "win32":
+        venv_python = venv_dir / "Scripts" / "python.exe"
+    else:
+        venv_python = venv_dir / "bin" / "python"
 
     # Se já estamos executando dentro do .venv, apenas checa se dependências estão ok
     if sys.prefix == str(venv_dir):
@@ -20,9 +23,12 @@ def ensure_venv():
 
     # Se o .venv já existe mas o script foi chamado com o python global do sistema
     if venv_python.exists():
-        os.execv(str(venv_python), [str(venv_python)] + sys.argv)
+        if sys.platform == "win32":
+            sys.exit(subprocess.call([str(venv_python)] + sys.argv))
+        else:
+            os.execv(str(venv_python), [str(venv_python)] + sys.argv)
 
-    # Se o .venv não existir, cria automaticamente usando os pacotes do sistema (WebKitGTK/gi)
+    # Se o .venv não existir, cria automaticamente usando os pacotes do sistema
     print(">> Configurando ambiente virtual Python (.venv)...")
     try:
         subprocess.run(
@@ -36,10 +42,13 @@ def ensure_venv():
                 [str(venv_python), "-m", "pip", "install", "-r", str(requirements_file)],
                 check=True,
             )
-        os.execv(str(venv_python), [str(venv_python)] + sys.argv)
+        if sys.platform == "win32":
+            sys.exit(subprocess.call([str(venv_python)] + sys.argv))
+        else:
+            os.execv(str(venv_python), [str(venv_python)] + sys.argv)
     except Exception as err:
         print(f"Erro ao configurar ambiente virtual: {err}")
-        print("Tente rodar manualmente:\n  python3 -m venv --system-site-packages .venv && source .venv/bin/activate && pip install -r requirements.txt")
+        print("Tente rodar manualmente:\n  python -m venv --system-site-packages .venv\n  .venv\\Scripts\\activate  (ou source .venv/bin/activate)\n  pip install -r requirements.txt")
         sys.exit(1)
 
 def check_frontend():
