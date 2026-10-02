@@ -3,7 +3,7 @@ import json
 import random
 import string
 import time
-from urllib.parse import urlparse, parse_qs, unquote
+from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, Callable
 import requests
@@ -49,9 +49,16 @@ def extract_clean_user_info(payload: dict) -> Dict[str, Optional[str]]:
 
 class AuthManager:
     def __init__(self):
+        self.main_window: Optional[webview.Window] = None
         self.login_window: Optional[webview.Window] = None
+        self.embedded_login_wv: Any = None
+        self.overlay: Any = None
         self.on_auth_callback: Optional[Callable[[dict], None]] = None
+        self.on_close_callback: Optional[Callable[[], None]] = None
         self.is_refreshing = False
+
+    def set_main_window(self, window: webview.Window):
+        self.main_window = window
 
     def build_auth_url(self) -> str:
         state = "".join(random.choices(string.ascii_letters + string.digits, k=16)) + str(int(time.time()))
@@ -64,10 +71,113 @@ class AuthManager:
             f"response_mode=fragment&response_type=code%20id_token%20token&scope=openid&state={state}&nonce={nonce}"
         )
 
-    def open_login(self, callback: Optional[Callable[[dict], None]] = None):
+    def open_login(
+        self,
+        callback: Optional[Callable[[dict], None]] = None,
+        on_close: Optional[Callable[[], None]] = None,
+    ):
         if callback:
             self.on_auth_callback = callback
+        if on_close:
+            self.on_close_callback = on_close
 
+        # 1. Tenta abrir embutido na MESMA JANELA principal (abaixo do Header de 64px)
+        if self._try_open_embedded():
+            return
+
+        # 2. Fallback para janela separada caso WebKitGTK não esteja disponível
+        self._open_separate_window()
+
+    def _try_open_embedded(self) -> bool:
+        if not self.main_window:
+            return False
+
+        try:
+            import gi
+            gi.require_version("Gtk", "3.0")
+            gi.require_version("WebKit2", "4.1")
+            from gi.repository import Gtk, WebKit2, GLib
+            from webview.platforms.gtk import BrowserView
+        except Exception as e:
+            print(f"[Auth] Modo embutido GTK não disponível: {e}")
+            return False
+
+        instance = BrowserView.instances.get(self.main_window.uid)
+        if not instance:
+            print("[Auth] Instância BrowserView não encontrada.")
+            return False
+
+        target_url = self.build_auth_url()
+        print(f"[Auth] Abrindo tela de autenticação DENTRO DA JANELA PRINCIPAL: {target_url}")
+
+        def _setup_ui():
+            try:
+                gtk_win = instance.window
+                children = gtk_win.get_children()
+                if not children:
+                    return False
+
+                # Envolve a janela principal em um Gtk.Overlay se ainda não o fez
+                if not isinstance(children[0], Gtk.Overlay):
+                    main_child = children[0]
+                    gtk_win.remove(main_child)
+                    self.overlay = Gtk.Overlay()
+                    self.overlay.add(main_child)
+                    gtk_win.add(self.overlay)
+                    gtk_win.show_all()
+                else:
+                    self.overlay = children[0]
+
+                # Se havia uma view de login anterior, remove
+                if self.embedded_login_wv:
+                    try:
+                        self.overlay.remove(self.embedded_login_wv)
+                        self.embedded_login_wv.destroy()
+                    except Exception:
+                        pass
+                    self.embedded_login_wv = None
+
+                login_wv = WebKit2.WebView()
+                # Começa exatamente 64px abaixo do topo, preservando o Header com o botão 'Cancelar Login'
+                login_wv.set_margin_top(64)
+
+                def on_load_changed(wv, load_event):
+                    if load_event in (WebKit2.LoadEvent.COMMITTED, WebKit2.LoadEvent.FINISHED):
+                        uri = wv.get_uri()
+                        if uri:
+                            self._check_and_handle_url(uri, wv)
+
+                def on_decide_policy(wv, decision, decision_type):
+                    if decision_type in (
+                        WebKit2.PolicyDecisionType.NAVIGATION_ACTION,
+                        WebKit2.PolicyDecisionType.NEW_WINDOW_ACTION,
+                    ):
+                        nav_action = decision.get_navigation_action()
+                        uri = nav_action.get_request().get_uri()
+                        if uri and self._check_and_handle_url(uri, wv):
+                            decision.ignore()
+                            return True
+                        if decision_type == WebKit2.PolicyDecisionType.NEW_WINDOW_ACTION:
+                            wv.load_uri(uri)
+                            decision.ignore()
+                            return True
+                    return False
+
+                login_wv.connect("load-changed", on_load_changed)
+                login_wv.connect("decide-policy", on_decide_policy)
+
+                self.embedded_login_wv = login_wv
+                self.overlay.add_overlay(login_wv)
+                login_wv.load_uri(target_url)
+                login_wv.show()
+            except Exception as ex:
+                print(f"[Auth] Erro ao montar login embutido: {ex}")
+            return False
+
+        GLib.idle_add(_setup_ui)
+        return True
+
+    def _open_separate_window(self):
         if self.login_window:
             try:
                 self.login_window.show()
@@ -76,7 +186,7 @@ class AuthManager:
                 self.login_window = None
 
         target_url = self.build_auth_url()
-        print(f"[Auth] Abrindo tela de autenticação Keycloak: {target_url}")
+        print(f"[Auth] Abrindo tela de autenticação em janela separada (fallback): {target_url}")
 
         self.login_window = webview.create_window(
             title="Autenticação People Zup (Keycloak & 2FA)",
@@ -88,12 +198,19 @@ class AuthManager:
             background_color="#0D0E12",
         )
 
+        def on_closed():
+            print("[Auth] Janela separada de login fechada pelo usuário.")
+            self.login_window = None
+            if self.on_close_callback:
+                self.on_close_callback()
+
+        self.login_window.events.closed += on_closed
+
         def on_loaded():
             if not self.login_window:
                 return
             try:
                 current_url = self.login_window.get_current_url()
-                print(f"[Auth] Navegação carregada: {current_url}")
                 self._check_and_handle_url(current_url)
             except Exception as e:
                 print(f"[Auth] Erro no listener loaded: {e}")
@@ -101,20 +218,42 @@ class AuthManager:
         self.login_window.events.loaded += on_loaded
 
     def close_login_window(self):
+        print("[Auth] Fechando tela de autenticação...")
+        if self.embedded_login_wv and self.overlay:
+            def _close():
+                try:
+                    if self.embedded_login_wv and self.overlay:
+                        self.overlay.remove(self.embedded_login_wv)
+                        self.embedded_login_wv.destroy()
+                        self.embedded_login_wv = None
+                except Exception as e:
+                    print(f"[Auth] Erro ao fechar login embutido: {e}")
+                return False
+            try:
+                from gi.repository import GLib
+                GLib.idle_add(_close)
+            except Exception:
+                pass
+
         if self.login_window:
             try:
                 self.login_window.destroy()
             except Exception as e:
-                print(f"[Auth] Erro ao fechar login window: {e}")
+                print(f"[Auth] Erro ao fechar loginWindow: {e}")
             self.login_window = None
 
-    def _check_and_handle_url(self, url: str):
+        if self.on_close_callback:
+            try:
+                self.on_close_callback()
+            except Exception:
+                pass
+
+    def _check_and_handle_url(self, url: str, webview_widget: Any = None) -> bool:
         if not url:
-            return
+            return False
 
         if "access_token=" in url or "code=" in url or "id_token=" in url:
             try:
-                # O Keycloak no modo fragment retorna tokens após # ou após ?
                 parsed = urlparse(url)
                 params_str = parsed.fragment if parsed.fragment else parsed.query
                 params = parse_qs(params_str)
@@ -127,33 +266,35 @@ class AuthManager:
                 refresh_token = refresh_token_list[0] if refresh_token_list else None
                 code = code_list[0] if code_list else None
 
-                # Captura cookies da sessão webview se disponível
                 cookies_dict = {}
-                try:
-                    if self.login_window:
-                        wv_cookies = self.login_window.get_cookies()
-                        for c in wv_cookies:
+                if self.login_window:
+                    try:
+                        for c in self.login_window.get_cookies():
                             if hasattr(c, "key") and hasattr(c, "value"):
                                 cookies_dict[c.key] = c.value
                             elif isinstance(c, dict):
                                 cookies_dict[c.get("name")] = c.get("value")
-                except Exception as ce:
-                    print(f"[Auth] Aviso ao extrair cookies da janela: {ce}")
+                    except Exception:
+                        pass
 
                 if access_token and len(access_token) > 20:
                     print("[Auth] Access token capturado com sucesso!")
                     self.handle_token_captured(access_token, refresh_token=refresh_token, cookies=cookies_dict)
                     self.close_login_window()
-                    return
+                    return True
 
                 if code:
                     print("[Auth] Code capturado, trocando por tokens no Keycloak...")
-                    success = self.exchange_code_for_tokens(code, "https://people.zup.com.br/career/logbook", cookies=cookies_dict)
+                    success = self.exchange_code_for_tokens(
+                        code, "https://people.zup.com.br/career/logbook", cookies=cookies_dict
+                    )
                     if success:
                         self.close_login_window()
-                        return
+                        return True
             except Exception as e:
                 print(f"[Auth] Erro ao processar URL de autenticação: {e}")
+
+        return False
 
     def exchange_code_for_tokens(self, code: str, redirect_uri: str, cookies: Optional[Dict[str, str]] = None) -> bool:
         endpoint = "https://keycloak-zenity.zup.com.br/auth/realms/zupinternal/protocol/openid-connect/token"
@@ -236,7 +377,7 @@ class AuthManager:
         }
 
         try:
-            print(f"[Auth] Renovando token JWT via Keycloak...")
+            print("[Auth] Renovando token JWT via Keycloak...")
             res = requests.post(endpoint, headers=headers, data=data, timeout=15)
             if res.ok:
                 resp_json = res.json()

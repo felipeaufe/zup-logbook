@@ -14,6 +14,7 @@ class BridgeAPI:
 
     def set_window(self, window: webview.Window):
         self.main_window = window
+        auth_manager.set_main_window(window)
 
     def emit_event(self, event_name: str, payload: Any):
         if not self.main_window:
@@ -41,12 +42,17 @@ class BridgeAPI:
                 except Exception as e:
                     print(f"[Bridge] Erro ao buscar competências pós login: {e}")
 
-        auth_manager.open_login(callback=on_auth)
+        def on_close():
+            print("[Bridge] Login embutido ou janela fechada sem autenticar")
+            self.emit_event("py:auth-status-changed", storage.get_session())
+
+        auth_manager.open_login(callback=on_auth, on_close=on_close)
         return True
 
     def cancelLogin(self) -> bool:
         print("[Bridge] cancelLogin chamado")
         auth_manager.close_login_window()
+        self.emit_event("py:auth-status-changed", storage.get_session())
         return True
 
     def setManualToken(self, token: str, refreshToken: Optional[str] = None) -> Dict[str, Any]:
