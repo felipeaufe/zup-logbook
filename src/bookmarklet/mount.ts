@@ -1,5 +1,143 @@
 const HOST_ID = 'zup-logbook-host';
 
+const ALL_COMPETENCES = [
+  { id: 1, name: 'Colaboramos de verdade' },
+  { id: 2, name: 'Nosso compromisso é coletivo' },
+  { id: 3, name: 'Vamos direto ao ponto' },
+  { id: 4, name: 'Focamos no cliente' },
+  { id: 5, name: 'Entregamos valor de ponta a ponta' },
+  { id: 6, name: 'Decidimos com contexto' },
+  { id: 7, name: 'Protagonizamos o futuro' },
+  { id: 8, name: 'Tomamos a iniciativa' },
+  { id: 9, name: 'Entrega soluções técnicas' },
+  { id: 10, name: 'Aplicabilidade de novos conhecimentos técnicos' },
+  { id: 11, name: 'Linguagem de Programação [Java, Go, Kotlin, C#, Python, Swift, etc ]' },
+  { id: 12, name: 'Algoritmos e Estrutura de Dados' },
+  { id: 13, name: 'Fluxo de trabalho/Workflow' },
+  { id: 14, name: 'Pipeline CI/CD' },
+  { id: 15, name: 'APIs' },
+  { id: 16, name: 'Segurança' },
+  { id: 17, name: 'Arquitetura de soluções' },
+  { id: 18, name: 'Redes (VPC, CDN, DNS, etc)' },
+  { id: 19, name: 'Infra / IaC (Terraform, CloudFormation, etc)' },
+  { id: 23, name: 'StackSpot AI' },
+  { id: 25, name: 'Computing services (EC2, ECS, EKS, Fargate, Lambda, etc)' },
+  { id: 26, name: 'Observabilidade e Monitoramento' },
+  { id: 27, name: 'SQL / noSQL' },
+  { id: 28, name: 'Cache' },
+  { id: 29, name: 'Inteligencia Artificial' },
+  { id: 40, name: 'Arquitetura de Solução' },
+  { id: 41, name: 'Qualidade' },
+  { id: 50, name: 'Testes Automatizados' },
+  { id: 52, name: 'Log, Debug, Performance' },
+  { id: 53, name: 'Versionamento' },
+  { id: 54, name: 'Code Review' },
+  { id: 59, name: 'Arquitetura' },
+  { id: 62, name: 'CI/CD' },
+  { id: 72, name: 'Bancos de dados' },
+  { id: 80, name: 'Codificação' },
+  { id: 83, name: 'Arquitetura de Sistemas' },
+  { id: 86, name: 'DevOps e Observabilidade' },
+  { id: 97, name: 'Boas Práticas de programação e automação' },
+  { id: 106, name: 'Linux' },
+];
+
+function norm(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+}
+
+function findCompetence(name: string) {
+  const s = norm(name);
+  if (!s) return null;
+  const found = ALL_COMPETENCES.find((c) => {
+    const cn = norm(c.name);
+    return cn === s || cn.includes(s) || s.includes(cn);
+  });
+  return found || { id: 0, name: name.trim() };
+}
+
+function parseLogbookText(raw: string) {
+  const text = raw.trim();
+  const descIdx = text.search(/descri[cç][aã]o:/i);
+  const compIdx = text.search(/compet[eê]ncias:/i);
+
+  let title = '';
+  if (descIdx !== -1) {
+    const rawTitlePart = text.slice(0, descIdx);
+    const lines = rawTitlePart.replace(/t[ií]tulo:\s*/i, '').trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    title = lines[0] || '';
+  } else {
+    title = text.split(/\r?\n/)[0]?.replace(/t[ií]tulo:\s*/i, '').trim() || '';
+  }
+
+  let descText = '';
+  if (descIdx !== -1) {
+    descText = compIdx !== -1 ? text.slice(descIdx, compIdx) : text.slice(descIdx);
+    descText = descText.replace(/descri[cç][aã]o:\s*/i, '').trim();
+  }
+
+  let compText = '';
+  if (compIdx !== -1) {
+    compText = text.slice(compIdx).replace(/compet[eê]ncias:\s*/i, '').trim();
+  }
+
+  const rawBlocks = descText ? descText.split(/[\r\n]+\s*-{3,}\s*[\r\n]+/) : [];
+  const formattedContent: any[] = [];
+  const plainBlocks: string[] = [];
+
+  for (let i = 0; i < rawBlocks.length; i++) {
+    const block = rawBlocks[i].trim();
+    if (!block) continue;
+    const lines = block.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) continue;
+
+    const topicTitle = lines[0];
+    const topicDesc = lines.slice(1).join('\n');
+
+    formattedContent.push({
+      type: 'paragraph',
+      children: [{ text: topicTitle, bold: true }],
+    });
+
+    if (topicDesc) {
+      formattedContent.push({
+        type: 'paragraph',
+        children: [{ text: topicDesc }],
+      });
+      plainBlocks.push(`${topicTitle}\n${topicDesc}`);
+    } else {
+      plainBlocks.push(topicTitle);
+    }
+
+    if (i < rawBlocks.length - 1) {
+      formattedContent.push({
+        type: 'paragraph',
+        children: [{ text: '', bold: true }],
+      });
+    }
+  }
+
+  const competences: any[] = [];
+  if (compText) {
+    const compLines = compText.split(/[\r\n]+/).map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean);
+    for (const line of compLines) {
+      const match = findCompetence(line);
+      if (match) competences.push(match);
+    }
+  }
+
+  return {
+    title,
+    formattedContent,
+    content: plainBlocks.join('\n\n'),
+    isPerformanceReview: true,
+    metadata: {
+      templateFor: /lideran[cç]a/i.test(text) && !/n[aã]o\s*lideran[cç]a/i.test(text) ? 'LEADERSHIP' : 'NON_LEADERSHIP',
+    },
+    competences,
+  };
+}
+
 let capturedToken: string | null = null;
 try {
   if (typeof window !== 'undefined') {
@@ -233,7 +371,7 @@ export function mountZupLogbook() {
       <span class="title">Zup Logbook</span>
       <button class="close-btn" type="button" title="Fechar">✕</button>
     </div>
-    <textarea placeholder="Cole o JSON do relato aqui..." autofocus></textarea>
+    <textarea placeholder="Cole o texto ou JSON do relato aqui..." autofocus></textarea>
     <div class="status"></div>
     <button class="submit-btn" type="button" disabled>Enviar</button>
   `;
@@ -279,14 +417,19 @@ export function mountZupLogbook() {
   const send = async () => {
     const val = textarea.value.trim();
     if (!val) {
-      showStatus('error', 'Cole o JSON antes de enviar.');
+      showStatus('error', 'Cole o relato antes de enviar.');
       return;
     }
 
+    let payload: any = null;
     try {
-      JSON.parse(val);
-    } catch (e: any) {
-      showStatus('error', `JSON inválido: ${e.message}`);
+      payload = JSON.parse(val);
+    } catch {
+      payload = parseLogbookText(val);
+    }
+
+    if (!payload || (!payload.title && !payload.content)) {
+      showStatus('error', 'Não foi possível identificar o título ou conteúdo do relato.');
       return;
     }
 
@@ -309,7 +452,7 @@ export function mountZupLogbook() {
           authorization: `Bearer ${token}`,
         },
         credentials: 'omit',
-        body: val,
+        body: JSON.stringify(payload),
       });
 
       const text = await res.text();
