@@ -1,47 +1,61 @@
-# Zup Logbook - Diário de Bordo Inteligente (Electron + IA)
+# Zup Logbook - Diário de Bordo Inteligente (Python + IA)
 
-Um aplicativo desktop moderno e intuitivo construído com **Electron**, **React**, **TypeScript** e **Tailwind CSS** para automatizar o registro de diários de bordo no **People Zup** (`people.zup.com.br`).
+Um aplicativo desktop moderno e intuitivo construído em **Python** (com **pywebview** nativo), **React 19**, **TypeScript** e **Tailwind CSS** para automatizar o registro de diários de bordo no **People Zup** (`people.zup.com.br`).
 
 ---
 
 ## 🚀 Como Funciona
 
-1. **Apresentação e Conexão**: Ao abrir a aplicação, uma tela inicial apresenta o assistente. Ao clicar em *Conectar*, uma janela segura do navegador do People Zup é aberta.
-2. **Autenticação com 2FA**: O usuário realiza seu login habitual e valida o Segundo Fator de Autenticação (2FA) diretamente no People Zup.
-3. **Interceptação Automática do JWT**: O Electron intercepta de forma transparente o token Bearer JWT e cookies da sessão assim que a autenticação é concluída, fechando a janela do People Zup e levando o usuário diretamente ao chat.
+1. **Apresentação e Conexão**: Ao abrir a aplicação, a tela inicial apresenta o assistente. Ao clicar em *Conectar*, uma janela segura do People Zup (Keycloak) é aberta.
+2. **Autenticação com 2FA**: O usuário realiza seu login habitual e valida o Segundo Fator de Autenticação (2FA) corporativo.
+3. **Captura e Renovação de Token**: O aplicativo captura o Bearer token JWT, cookies e refresh token, fechando a janela de login e levando o usuário diretamente ao chat. Possui renovação automática e silenciosa em caso de expiração do token.
 4. **Chat com Agente de IA**:
-   - O usuário descreve livremente suas atividades do dia (ex.: *"Hoje foquei 6h na refatoração do módulo de autenticação e participei de 2h de alinhamentos"*).
-   - O agente de IA processa o texto, aplica as regras de negócio, calcula a duração e gera um **Card de Proposta Visual**.
-5. **Revisão e Ajustes**: O usuário pode aprovar com um clique, editar os campos diretamente ou solicitar alterações conversando com a IA (ex.: *"Mude a categoria para Bugfix"*).
-6. **Disparo do POST & Limpeza**: Ao aprovar, o app converte o registro para o formato JSON esperado pela API do People Zup e efetua o envio autenticado. Após o sucesso, a tela é limpa automaticamente para um novo registro.
+   - Suporte nativo à **StackSpot AI** (Personal Access Token ou OAuth2 Client Credentials com Quick Commands / Chat API), além de Google Gemini e OpenAI.
+   - O usuário descreve livremente suas atividades do dia.
+   - O agente de IA processa o relato, seleciona o template apropriado (Liderança / Não Liderança), identifica competências oficiais e gera o **Card de Proposta Visual**.
+5. **Revisão e Ajustes**: O usuário pode aprovar com um clique, editar os campos diretamente ou solicitar alterações conversando com a IA.
+6. **Disparo do POST & Limpeza**: Ao aprovar, o app converte o registro para o formato Slate AST esperado pela API Dune do People Zup e efetua o envio autenticado.
 
 ---
 
 ## 🛠️ Tecnologias
 
-- **Electron**: Plataforma desktop multiplataforma (Linux, Windows, macOS).
-- **Vite & React 19**: Interface moderna, ágil e reativa.
-- **Tailwind CSS**: Design escuro, polido e elegante.
+- **Python 3.10+**: Backend nativo com `pywebview` integrado ao WebKit2/GTK no Linux e WebView2 no Windows.
+- **React 19 & TypeScript**: Interface visual reativa, rápida e fluida.
+- **Tailwind CSS**: Design escuro oficial Zup Purple (`#7B2CBF` / `#0D0E12`).
 - **Lucide Icons**: Ícones modernos e consistentes.
-- **Google Gemini API / OpenAI**: Inteligência artificial para extração e estruturação automática de dados.
+- **StackSpot AI / Google Gemini / OpenAI**: Motores de IA para estruturação de diários.
 
 ---
 
 ## 📦 Como Executar
 
-### 1. Instalar Dependências
+### 1. Pré-requisitos
+- Python 3.10 ou superior
+- Node.js e pnpm (ou npm)
+
+### 2. Configurar o Ambiente Python
 ```bash
-npm install
+# Criar o ambiente virtual com acesso a pacotes do sistema (WebKitGTK/gi)
+python3 -m venv --system-site-packages .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### 2. Iniciar em Modo de Desenvolvimento
+### 3. Instalar Dependências e Compilar o Frontend
 ```bash
-npm run dev
+pnpm install
+pnpm build
 ```
 
-### 3. Compilar para Produção
+### 4. Iniciar a Aplicação
 ```bash
-npm run build
+python3 run.py
+```
+
+Ou via script npm:
+```bash
+pnpm start
 ```
 
 ---
@@ -49,6 +63,6 @@ npm run build
 ## ⚙️ Configurações
 
 O aplicativo conta com uma tela de **Configurações** (ícone de engrenagem) que permite:
-- **IA**: Escolher entre Google Gemini e OpenAI, inserir a chave de API e selecionar o modelo (padrão: `gemini-2.5-flash`).
-- **People Zup**: Customizar a URL base (`https://people.zup.com.br`) e o endpoint do diário (padrão: `/api/v1/logbook`), inspecionar ou copiar o JWT ativo, ou inserir um token manualmente.
-- **Regras do Diário**: Ajustar as instruções de sistema fornecidas à IA.
+- **Provedor de IA**: Escolher entre StackSpot AI (PAT ou Client ID/Secret com Realm e Quick Command), Google Gemini e OpenAI.
+- **People Zup**: Visualizar o status de conexão, tempo de expiração do token, botão de renovação manual, ou inserir token JWT diretamente.
+- **Templates e Instruções**: Customizar os 3 blocos oficiais (Templates de Liderança, Não Liderança e Instruções de Sistema da IA) com botão para restaurar padrões a qualquer momento.
