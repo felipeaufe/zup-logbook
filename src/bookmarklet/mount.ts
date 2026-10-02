@@ -234,14 +234,24 @@ interface DecodedToken {
   azp?: string;
 }
 
+interface AuthSessionInfo {
+  token: string | null;
+  exp: number;
+  isExpired: boolean;
+  userEmail?: string;
+  userName?: string;
+  source: string;
+}
+
 function parseJwt(token: string): DecodedToken | null {
   if (!token || typeof token !== 'string') return null;
   const parts = token.trim().split('.');
   if (parts.length !== 3) return null;
   try {
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4 !== 0) b64 += '=';
     const jsonStr = decodeURIComponent(
-      atob(base64)
+      atob(b64)
         .split('')
         .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
         .join('')
@@ -257,7 +267,9 @@ function parseJwt(token: string): DecodedToken | null {
     };
   } catch {
     try {
-      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4 !== 0) b64 += '=';
+      const payload = JSON.parse(atob(b64));
       return {
         token: token.trim(),
         payload,
@@ -273,10 +285,13 @@ function parseJwt(token: string): DecodedToken | null {
 }
 
 function isAccessToken(p: DecodedToken): boolean {
-  if (p.typ === 'id' || p.typ === 'refresh') return false;
-  if (p.typ === 'bearer') return true;
-  if (p.payload && (p.payload.resource_access || p.payload.realm_access || p.payload.scope)) return true;
-  return p.typ !== 'id';
+  if (!p || !p.payload) return false;
+  if (p.typ === 'refresh' || p.payload.type === 'refresh') return false;
+  if (p.typ === 'id' || p.payload.type === 'id') return false;
+  if (p.typ === 'bearer' || p.payload.token_type?.toLowerCase() === 'bearer') return true;
+  if (p.payload.resource_access || p.payload.realm_access) return true;
+  if (p.payload.scope && !p.payload.nonce && !p.payload.auth_time) return true;
+  return false;
 }
 
 function isRefreshToken(p: DecodedToken): boolean {
@@ -446,9 +461,28 @@ async function triggerSilentSsoCheck(): Promise<string | null> {
   });
 }
 
-async function getAuthToken(forceRefresh = false): Promise<string | null> {
+async function getAuthSession(forceRefresh = false): Promise<AuthSessionInfo> {
   const now = Date.now();
   const minValidityMs = 15000;
+
+  // 0. Verifica token manual configurado pelo usuário
+  try {
+    const manual = sessionStorage.getItem('zup_manual_token') || localStorage.getItem('zup_manual_token');
+    if (manual) {
+      const p = parseJwt(manual);
+      if (p) {
+        console.info('[ZupLogbook] Usando token manual salvo');
+        return {
+          token: p.token,
+          exp: p.exp,
+          isExpired: p.exp <= now,
+          userEmail: p.payload?.email,
+          userName: p.payload?.name,
+          source: 'manual',
+        };
+      }
+    }
+  } catch {}
 
   let bestRefreshToken: { token: string; iss?: string; azp?: string } | null = null;
   if (capturedRefreshToken) {
@@ -470,17 +504,33 @@ async function getAuthToken(forceRefresh = false): Promise<string | null> {
       if (win.keycloak.token) {
         const parsed = parseJwt(win.keycloak.token);
         if (parsed && isAccessToken(parsed) && (forceRefresh ? false : parsed.exp > now + minValidityMs)) {
-          return win.keycloak.token;
+          console.info('[ZupLogbook] Token obtido via window.keycloak');
+          return {
+            token: win.keycloak.token,
+            exp: parsed.exp,
+            isExpired: false,
+            userEmail: parsed.payload?.email,
+            userName: parsed.payload?.name,
+            source: 'keycloak',
+          };
         }
       }
     } catch {}
   }
 
-  // 2. Se não estiver forçando refresh e tivermos capturedToken válido
+  // 2. Se interceptado na rede e válido
   if (!forceRefresh && capturedToken) {
     const parsed = parseJwt(capturedToken);
     if (parsed && isAccessToken(parsed) && parsed.exp > now + minValidityMs) {
-      return capturedToken;
+      console.info('[ZupLogbook] Token obtido via interceptador de rede');
+      return {
+        token: capturedToken,
+        exp: parsed.exp,
+        isExpired: false,
+        userEmail: parsed.payload?.email,
+        userName: parsed.payload?.name,
+        source: 'interceptor',
+      };
     }
   }
 
@@ -499,7 +549,15 @@ async function getAuthToken(forceRefresh = false): Promise<string | null> {
           if (item.access_token) {
             const parsed = parseJwt(item.access_token);
             if (parsed && isAccessToken(parsed) && (forceRefresh ? false : parsed.exp > now + minValidityMs)) {
-              return item.access_token;
+              console.info('[ZupLogbook] Token obtido via storage OIDC (' + k + ')');
+              return {
+                token: item.access_token,
+                exp: parsed.exp,
+                isExpired: false,
+                userEmail: parsed.payload?.email,
+                userName: parsed.payload?.name,
+                source: 'oidc',
+              };
             }
           }
         }
@@ -507,9 +565,9 @@ async function getAuthToken(forceRefresh = false): Promise<string | null> {
     } catch {}
   }
 
-  // 4. Varredura profunda de JWTs em todas as chaves de storage, cookies e variáveis globais
+  // 4. Varredura profunda de JWTs em todas as chaves de storage, cookies e window
   const accessCandidates: DecodedToken[] = [];
-  const check = (str: string) => {
+  const check = (str: string, src: string) => {
     if (!str || typeof str !== 'string') return;
     const matches = str.match(/eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+/g);
     if (!matches) return;
@@ -519,6 +577,7 @@ async function getAuthToken(forceRefresh = false): Promise<string | null> {
       if (isRefreshToken(p)) {
         if (!bestRefreshToken) bestRefreshToken = { token: m, iss: p.iss, azp: p.azp };
       } else if (isAccessToken(p)) {
+        console.info(`[ZupLogbook] Candidato Access Token (${src}): exp=${new Date(p.exp).toLocaleTimeString()}, expirado=${p.exp <= now}`);
         accessCandidates.push(p);
       }
     }
@@ -527,21 +586,21 @@ async function getAuthToken(forceRefresh = false): Promise<string | null> {
   try {
     for (let i = 0; i < sessionStorage.length; i++) {
       const k = sessionStorage.key(i);
-      if (k) check(sessionStorage.getItem(k) || '');
+      if (k) check(sessionStorage.getItem(k) || '', `sessionStorage[${k}]`);
     }
   } catch {}
 
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k) check(localStorage.getItem(k) || '');
+      if (k && !k.startsWith('zup_manual_token')) check(localStorage.getItem(k) || '', `localStorage[${k}]`);
     }
   } catch {}
 
-  try { check(document.cookie); } catch {}
+  try { check(document.cookie, 'cookie'); } catch {}
 
   for (const k of ['keycloak', '_keycloak', 'kc', 'auth', 'currentUser', '__PRELOADED_STATE__']) {
-    try { if (win[k]) check(typeof win[k] === 'string' ? win[k] : JSON.stringify(win[k])); } catch {}
+    try { if (win[k]) check(typeof win[k] === 'string' ? win[k] : JSON.stringify(win[k]), `window.${k}`); } catch {}
   }
 
   // Filtra candidatos válidos (não expirados)
@@ -554,31 +613,77 @@ async function getAuthToken(forceRefresh = false): Promise<string | null> {
         if (aBearer !== bBearer) return bBearer - aBearer;
         return b.exp - a.exp;
       });
-      return valid[0].token;
+      const best = valid[0];
+      console.info(`[ZupLogbook] Melhor token selecionado: exp=${new Date(best.exp).toLocaleTimeString()}`);
+      return {
+        token: best.token,
+        exp: best.exp,
+        isExpired: false,
+        userEmail: best.payload?.email,
+        userName: best.payload?.name,
+        source: 'storage',
+      };
     }
   }
 
   // 5. Tenta renovar via refresh token se disponível
   if (bestRefreshToken) {
+    console.info('[ZupLogbook] Tentando renovar sessão com Refresh Token...');
     const refreshed = await refreshKeycloakToken(
       bestRefreshToken.token,
       bestRefreshToken.iss,
       bestRefreshToken.azp
     );
-    if (refreshed) return refreshed;
+    if (refreshed) {
+      const p = parseJwt(refreshed);
+      return {
+        token: refreshed,
+        exp: p?.exp || now + 300000,
+        isExpired: false,
+        userEmail: p?.payload?.email,
+        userName: p?.payload?.name,
+        source: 'refresh_token',
+      };
+    }
   }
 
   // 6. Silent SSO via iframe
+  console.info('[ZupLogbook] Tentando Silent SSO via iframe...');
   const ssoToken = await triggerSilentSsoCheck();
-  if (ssoToken) return ssoToken;
-
-  // Fallback: se houver qualquer access token não nulo
-  if (accessCandidates.length > 0) {
-    accessCandidates.sort((a, b) => b.exp - a.exp);
-    return accessCandidates[0].token;
+  if (ssoToken) {
+    const p = parseJwt(ssoToken);
+    return {
+      token: ssoToken,
+      exp: p?.exp || now + 300000,
+      isExpired: false,
+      userEmail: p?.payload?.email,
+      userName: p?.payload?.name,
+      source: 'sso_iframe',
+    };
   }
 
-  return null;
+  // Se houver candidato expirado
+  if (accessCandidates.length > 0) {
+    accessCandidates.sort((a, b) => b.exp - a.exp);
+    const candidate = accessCandidates[0];
+    console.warn(`[ZupLogbook] Todos os access tokens estão expirados (último expirou às ${new Date(candidate.exp).toLocaleTimeString()})`);
+    return {
+      token: null,
+      exp: candidate.exp,
+      isExpired: true,
+      userEmail: candidate.payload?.email,
+      userName: candidate.payload?.name,
+      source: 'expired',
+    };
+  }
+
+  console.warn('[ZupLogbook] Nenhum token de acesso encontrado na página.');
+  return {
+    token: null,
+    exp: 0,
+    isExpired: false,
+    source: 'not_found',
+  };
 }
 
 export function mountZupLogbook() {
@@ -629,8 +734,8 @@ export function mountZupLogbook() {
       border-radius: 12px;
       display: flex;
       flex-direction: column;
-      padding: 16px;
-      gap: 10px;
+      padding: 14px 16px;
+      gap: 8px;
       color: #e2e8f0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       user-select: none;
@@ -658,6 +763,75 @@ export function mountZupLogbook() {
     .close-btn:hover {
       color: #fff;
       background: #252836;
+    }
+    .session-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #94a3b8;
+      padding: 0 2px;
+    }
+    .session-badge {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      max-width: 250px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .session-toggle-btn {
+      background: none;
+      border: none;
+      color: #818cf8;
+      cursor: pointer;
+      font-size: 11px;
+      text-decoration: underline;
+      padding: 0;
+    }
+    .session-toggle-btn:hover {
+      color: #a5b4fc;
+    }
+    .manual-box {
+      display: none;
+      gap: 6px;
+      align-items: center;
+      padding: 6px 8px;
+      background: #0f1015;
+      border: 1px solid #2d3142;
+      border-radius: 8px;
+    }
+    .manual-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #f1f5f9;
+      font-size: 11px;
+      outline: none;
+      font-family: monospace;
+    }
+    .manual-apply-btn {
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .manual-apply-btn:hover {
+      background: #4f46e5;
+    }
+    .manual-clear-btn {
+      background: #252836;
+      color: #94a3b8;
+      border: none;
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
     }
     textarea {
       flex: 1;
@@ -728,6 +902,15 @@ export function mountZupLogbook() {
       <span class="title">Zup Logbook</span>
       <button class="close-btn" type="button" title="Fechar">✕</button>
     </div>
+    <div class="session-bar">
+      <span class="session-badge">● Detectando sessão...</span>
+      <button class="session-toggle-btn" type="button">Chave manual</button>
+    </div>
+    <div class="manual-box">
+      <input type="password" class="manual-input" placeholder="Cole o Bearer token aqui..." />
+      <button class="manual-apply-btn" type="button">Salvar</button>
+      <button class="manual-clear-btn" type="button" title="Limpar token manual">✕</button>
+    </div>
     <textarea placeholder="Cole o Markdown ou texto do relato aqui..." autofocus></textarea>
     <div class="status"></div>
     <button class="submit-btn" type="button" disabled>Enviar</button>
@@ -735,9 +918,63 @@ export function mountZupLogbook() {
   shadow.appendChild(modal);
 
   const closeBtn = modal.querySelector('.close-btn') as HTMLButtonElement;
+  const sessionBadge = modal.querySelector('.session-badge') as HTMLSpanElement;
+  const sessionToggleBtn = modal.querySelector('.session-toggle-btn') as HTMLButtonElement;
+  const manualBox = modal.querySelector('.manual-box') as HTMLDivElement;
+  const manualInput = modal.querySelector('.manual-input') as HTMLInputElement;
+  const manualApplyBtn = modal.querySelector('.manual-apply-btn') as HTMLButtonElement;
+  const manualClearBtn = modal.querySelector('.manual-clear-btn') as HTMLButtonElement;
   const textarea = modal.querySelector('textarea') as HTMLTextAreaElement;
   const statusEl = modal.querySelector('.status') as HTMLDivElement;
   const submitBtn = modal.querySelector('.submit-btn') as HTMLButtonElement;
+
+  const updateSessionUI = async () => {
+    const auth = await getAuthSession();
+    if (auth.token && !auth.isExpired) {
+      const mins = Math.max(0, Math.round((auth.exp - Date.now()) / 60000));
+      const user = auth.userEmail ? auth.userEmail.split('@')[0] : 'Sessão ativa';
+      sessionBadge.textContent = `🟢 ${auth.source === 'manual' ? 'Manual: ' : ''}${user} (${mins}m)`;
+      sessionBadge.style.color = '#4ade80';
+      sessionBadge.title = `Expira às ${new Date(auth.exp).toLocaleTimeString()}`;
+    } else if (auth.isExpired) {
+      sessionBadge.textContent = '🔴 Sessão expirada (F5 no People)';
+      sessionBadge.style.color = '#f87171';
+      sessionBadge.title = `Expirou às ${new Date(auth.exp).toLocaleTimeString()}`;
+    } else {
+      sessionBadge.textContent = '⚪ Token não detectado';
+      sessionBadge.style.color = '#94a3b8';
+      sessionBadge.title = 'Nenhum token encontrado na página.';
+    }
+  };
+
+  sessionToggleBtn.onclick = () => {
+    const isHidden = manualBox.style.display === 'none' || !manualBox.style.display;
+    manualBox.style.display = isHidden ? 'flex' : 'none';
+    if (isHidden) {
+      const existing = sessionStorage.getItem('zup_manual_token') || localStorage.getItem('zup_manual_token') || '';
+      manualInput.value = existing;
+      manualInput.focus();
+    }
+  };
+
+  manualApplyBtn.onclick = () => {
+    const val = manualInput.value.trim().replace(/^bearer\s+/i, '');
+    if (val) {
+      sessionStorage.setItem('zup_manual_token', val);
+      manualBox.style.display = 'none';
+      updateSessionUI();
+      showStatus('success', 'Chave manual salva com sucesso!');
+    }
+  };
+
+  manualClearBtn.onclick = () => {
+    sessionStorage.removeItem('zup_manual_token');
+    localStorage.removeItem('zup_manual_token');
+    manualInput.value = '';
+    manualBox.style.display = 'none';
+    updateSessionUI();
+    showStatus('success', 'Chave manual removida.');
+  };
 
   const close = () => {
     host.style.display = 'none';
@@ -794,14 +1031,25 @@ export function mountZupLogbook() {
     submitBtn.textContent = 'Autenticando...';
     clearStatus();
 
-    let token = await getAuthToken();
-    if (!token) {
-      showStatus('error', 'Token de autenticação (Access Token) não encontrado na página.');
+    let auth = await getAuthSession();
+    if (!auth.token) {
+      if (auth.isExpired) {
+        showStatus(
+          'error',
+          `Sessão expirada no People Zup (expirou às ${new Date(auth.exp).toLocaleTimeString()}). Recarregue a página (F5) ou use a "Chave manual" acima.`
+        );
+      } else {
+        showStatus(
+          'error',
+          'Token de autenticação não encontrado na página. Atualize a página (F5) ou use a "Chave manual" acima.'
+        );
+      }
       submitBtn.textContent = 'Enviar';
       submitBtn.disabled = !textarea.value.trim();
       return;
     }
 
+    let token = auth.token;
     submitBtn.textContent = 'Enviando...';
 
     const doSubmit = async (authToken: string) => {
@@ -832,9 +1080,9 @@ export function mountZupLogbook() {
       // Se falhar por autorização (401, 403 ou explicit deny na policy), força renovação e reenvia uma vez
       if (!result.ok && (result.status === 401 || result.status === 403 || result.text.includes('not authorized'))) {
         submitBtn.textContent = 'Renovando sessão...';
-        const refreshedToken = await getAuthToken(true);
-        if (refreshedToken && refreshedToken !== token) {
-          token = refreshedToken;
+        const refreshedAuth = await getAuthSession(true);
+        if (refreshedAuth.token && refreshedAuth.token !== token) {
+          token = refreshedAuth.token;
           submitBtn.textContent = 'Reenviando...';
           result = await doSubmit(token);
         }
@@ -844,6 +1092,7 @@ export function mountZupLogbook() {
         showStatus('success', `Relato${result.data?.id ? ` #${result.data.id}` : ''} enviado com sucesso!`);
         textarea.value = '';
         submitBtn.disabled = true;
+        updateSessionUI();
       } else {
         const msg =
           result.data?.message ||
@@ -877,6 +1126,7 @@ export function mountZupLogbook() {
   };
 
   document.body.appendChild(host);
+  updateSessionUI();
   setTimeout(() => {
     textarea.focus();
     window.addEventListener('pointerdown', onOutsidePointer, true);
