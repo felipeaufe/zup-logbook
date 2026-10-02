@@ -57,8 +57,9 @@ def check_frontend():
                 sys.exit(1)
 
 def main():
-    ensure_venv()
-    check_frontend()
+    if not getattr(sys, "frozen", False):
+        ensure_venv()
+        check_frontend()
     if "--test" in sys.argv or "--check" in sys.argv:
         import webview
         from zup_logbook.main import main as app_main

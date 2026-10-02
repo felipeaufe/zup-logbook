@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:bin": "python3 build_binary.py",
     "preview": "vite preview",
     "start": "python3 run.py"
   },

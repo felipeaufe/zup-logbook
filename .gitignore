@@ -30,3 +30,7 @@ __pycache__/
 env/
 venv/
 .pytest_cache/
+build/
+dist_bin/
+*.spec
+

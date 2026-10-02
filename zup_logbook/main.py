@@ -16,9 +16,12 @@ def main():
     if cached_comps:
         set_dynamic_competences(cached_comps)
 
-    # Determina a raiz do projeto
-    project_root = Path(__file__).resolve().parent.parent
-    dist_dir = project_root / "dist"
+    # Determina a raiz do projeto e pasta de assets (dist)
+    if getattr(sys, "frozen", False):
+        dist_dir = Path(sys._MEIPASS) / "dist"
+    else:
+        project_root = Path(__file__).resolve().parent.parent
+        dist_dir = project_root / "dist"
 
     dev_url = os.environ.get("VITE_DEV_SERVER_URL")
 
