@@ -18,7 +18,7 @@ function generateLoader(url) {
   return `javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){h.style.display=h.style.display==='none'?'block':'none';return;}const s=document.createElement('script');s.src='${url}?t='+Date.now();document.body.appendChild(s);})();`;
 }
 
-const defaultUrl = 'https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet/dist/zup-logbook.bookmarklet.js';
+const defaultUrl = 'https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet-simplified/dist/zup-logbook.bookmarklet.js';
 const defaultLoader = generateLoader(defaultUrl);
 
 const LOGBOOK_FAVICON_DATA_URI =

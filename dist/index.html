@@ -157,7 +157,7 @@
     <!-- Configuração da URL de onde o script será servido -->
     <div class="url-config">
       <label for="scriptUrl">URL de Hospedagem do script (CDN GitHub configurada por padrão):</label>
-      <input type="text" id="scriptUrl" value="https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet/dist/zup-logbook.bookmarklet.js" oninput="updateBookmarklet()" />
+      <input type="text" id="scriptUrl" value="https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet-simplified/dist/zup-logbook.bookmarklet.js" oninput="updateBookmarklet()" />
       <span style="font-size: 12px; color: #64748B; margin-top: 4px; display: block;">
         ✨ Servido diretamente via CDN global do GitHub (jsDelivr). Nenhum servidor local é necessário! Para testar alterações locais, você pode mudar para <code>http://localhost:8080/zup-logbook.bookmarklet.js</code>.
       </span>
@@ -165,7 +165,7 @@
 
     <!-- Botão de arrastar -->
     <div style="text-align: center;">
-      <a id="bookmarkletLink" href="javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){h.style.display=h.style.display==='none'?'block':'none';return;}const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet/dist/zup-logbook.bookmarklet.js?t='+Date.now();document.body.appendChild(s);})();" class="btn-bookmarklet" title="Arraste para seus Favoritos">
+      <a id="bookmarkletLink" href="javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){h.style.display=h.style.display==='none'?'block':'none';return;}const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet-simplified/dist/zup-logbook.bookmarklet.js?t='+Date.now();document.body.appendChild(s);})();" class="btn-bookmarklet" title="Arraste para seus Favoritos">
         ⭐ Zup Logbook
       </a>
       <p style="font-size: 13px; color: #64748B; margin: 0;">
@@ -188,13 +188,13 @@
         <span style="font-size: 13px; color: #94A3B8;">Código do Bookmarklet Loader (apenas 120 caracteres):</span>
         <button class="btn-copy" onclick="copyCode()">Copiar Código</button>
       </div>
-      <textarea id="code" readonly>javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){h.style.display=h.style.display==='none'?'block':'none';return;}const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet/dist/zup-logbook.bookmarklet.js?t='+Date.now();document.body.appendChild(s);})();</textarea>
+      <textarea id="code" readonly>javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){h.style.display=h.style.display==='none'?'block':'none';return;}const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet-simplified/dist/zup-logbook.bookmarklet.js?t='+Date.now();document.body.appendChild(s);})();</textarea>
     </div>
   </div>
 
   <script>
     function updateBookmarklet() {
-      const url = document.getElementById('scriptUrl').value.trim() || 'https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet/dist/zup-logbook.bookmarklet.js';
+      const url = document.getElementById('scriptUrl').value.trim() || 'https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet-simplified/dist/zup-logbook.bookmarklet.js';
       const loaderCode = "javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){h.style.display=h.style.display==='none'?'block':'none';return;}const s=document.createElement('script');s.src='" + url + "?t='+Date.now();document.body.appendChild(s);})();";
       document.getElementById('bookmarkletLink').href = loaderCode;
       document.getElementById('code').value = loaderCode;

@@ -8,7 +8,6 @@ const HOST_ID = 'zup-logbook-host';
 export function mountZupLogbook() {
   const existingHost = document.getElementById(HOST_ID);
   if (existingHost) {
-    // Alterna a visibilidade se já estiver montado na página
     if (existingHost.style.display === 'none') {
       existingHost.style.display = 'block';
     } else {
@@ -17,19 +16,18 @@ export function mountZupLogbook() {
     return;
   }
 
-  // Cria o container host fixado à direita da tela
+  // Cria o container host flutuante no canto superior direito
   const host = document.createElement('div');
   host.id = HOST_ID;
   host.style.position = 'fixed';
-  host.style.top = '0';
-  host.style.right = '0';
-  host.style.left = 'auto';
-  host.style.width = '100vw';
-  host.style.maxWidth = '100vw';
-  host.style.height = '100vh';
-  host.style.zIndex = '2147483647'; // Fica acima de qualquer elemento da página
-  host.style.boxShadow = '-8px 0 32px rgba(0, 0, 0, 0.6)';
-  host.style.transition = 'width 0.25s ease-in-out, transform 0.25s ease-in-out';
+  host.style.top = '24px';
+  host.style.right = '24px';
+  host.style.width = '440px';
+  host.style.maxWidth = 'calc(100vw - 48px)';
+  host.style.zIndex = '2147483647';
+  host.style.borderRadius = '16px';
+  host.style.boxShadow = '0 20px 40px rgba(0, 0, 0, 0.6)';
+  host.style.transition = 'opacity 0.2s ease-in-out';
 
   // Cria a Shadow DOM para isolar completamente o CSS do People Zup e do Tailwind
   const shadowRoot = host.attachShadow({ mode: 'open' });
@@ -51,13 +49,8 @@ export function mountZupLogbook() {
   `;
   shadowRoot.appendChild(styleEl);
 
-  // Elemento raiz do React
   const rootContainer = document.createElement('div');
   rootContainer.style.width = '100%';
-  rootContainer.style.height = '100%';
-  rootContainer.style.display = 'flex';
-  rootContainer.style.flexDirection = 'column';
-  rootContainer.style.overflow = 'hidden';
   shadowRoot.appendChild(rootContainer);
 
   const reactRoot = ReactDOM.createRoot(rootContainer);
@@ -70,7 +63,7 @@ export function mountZupLogbook() {
   );
 
   document.body.appendChild(host);
-  console.log('🚀 Zup Logbook montado com sucesso via Bookmarklet!');
+  console.log('🚀 Zup Logbook (Simplificado) montado com sucesso via Bookmarklet!');
 }
 
 // Auto-executa ao ser injetado pelo bookmarklet
