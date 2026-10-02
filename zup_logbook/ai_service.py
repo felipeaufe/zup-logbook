@@ -55,7 +55,10 @@ class AiService:
 
     def _get_stackspot_access_token(self, settings: Dict[str, Any]) -> str:
         if settings.get("stackspotToken") and settings["stackspotToken"].strip():
-            return settings["stackspotToken"].strip()
+            token = settings["stackspotToken"].strip()
+            if token.lower().startswith("bearer "):
+                token = token[7:].strip()
+            return token
 
         realm = (settings.get("stackspotRealm") or "zup").strip()
         client_id = (settings.get("stackspotClientId") or "").strip()
@@ -73,7 +76,7 @@ class AiService:
         if not client_id or not client_secret:
             raise ValueError("Credenciais da StackSpot AI não configuradas.")
 
-        print(f"[AI] Solicitando token OAuth2 StackSpot para realm: {realm}")
+        print(f"[AI] Solicitando token OAuth2 StackSpot para realm: {realm} ({token_url})")
         res = requests.post(
             token_url,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -86,7 +89,14 @@ class AiService:
         )
 
         if not res.ok:
-            raise RuntimeError(f"Falha na autenticação StackSpot ({res.status_code}): {res.text}")
+            err_msg = res.text.strip()
+            if res.status_code == 403 and "Authorization header" in err_msg:
+                raise RuntimeError(
+                    f"O servidor StackSpot ({realm}) retornou 403 ({err_msg}). "
+                    f"Verifique se o Realm '{realm}' é o slug correto da sua conta no portal StackSpot ou se é necessária conexão via VPN corporativa. "
+                    "Alternativamente, gere um Personal Access Token (PAT) no seu perfil do StackSpot AI e cole no campo PAT."
+                )
+            raise RuntimeError(f"Falha na autenticação StackSpot ({res.status_code}): {err_msg}")
 
         data = res.json()
         access_token = data["access_token"]
