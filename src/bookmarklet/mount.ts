@@ -225,17 +225,79 @@ function parseInput(raw: string) {
   };
 }
 
+interface DecodedToken {
+  token: string;
+  payload: any;
+  exp: number;
+  typ: string;
+  iss?: string;
+  azp?: string;
+}
+
+function parseJwt(token: string): DecodedToken | null {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.trim().split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const jsonStr = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const payload = JSON.parse(jsonStr);
+    return {
+      token: token.trim(),
+      payload,
+      exp: payload.exp ? payload.exp * 1000 : Infinity,
+      typ: (payload.typ || payload.type || '').toLowerCase(),
+      iss: payload.iss,
+      azp: payload.azp || payload.client_id,
+    };
+  } catch {
+    try {
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return {
+        token: token.trim(),
+        payload,
+        exp: payload.exp ? payload.exp * 1000 : Infinity,
+        typ: (payload.typ || payload.type || '').toLowerCase(),
+        iss: payload.iss,
+        azp: payload.azp || payload.client_id,
+      };
+    } catch {
+      return null;
+    }
+  }
+}
+
+function isAccessToken(p: DecodedToken): boolean {
+  if (p.typ === 'id' || p.typ === 'refresh') return false;
+  if (p.typ === 'bearer') return true;
+  if (p.payload && (p.payload.resource_access || p.payload.realm_access || p.payload.scope)) return true;
+  return p.typ !== 'id';
+}
+
+function isRefreshToken(p: DecodedToken): boolean {
+  return p.typ === 'refresh' || (p.payload && p.payload.type === 'refresh');
+}
+
 let capturedToken: string | null = null;
+let capturedRefreshToken: string | null = null;
+
 try {
   if (typeof window !== 'undefined') {
     const origFetch = window.fetch;
     window.fetch = async function (...args) {
       try {
+        const input = args[0];
         const init = args[1];
         let h: string | null = null;
         if (init?.headers) {
-          if (init.headers instanceof Headers) h = init.headers.get('Authorization') || init.headers.get('authorization');
-          else if (Array.isArray(init.headers)) {
+          if (init.headers instanceof Headers) {
+            h = init.headers.get('Authorization') || init.headers.get('authorization');
+          } else if (Array.isArray(init.headers)) {
             const found = init.headers.find(([k]) => k.toLowerCase() === 'authorization');
             if (found) h = found[1];
           } else if (typeof init.headers === 'object') {
@@ -244,7 +306,18 @@ try {
         }
         if (h && h.toLowerCase().startsWith('bearer ')) {
           const t = h.replace(/^bearer\s+/i, '').trim();
-          if (t.length > 20) capturedToken = t;
+          const parsed = parseJwt(t);
+          if (parsed && isAccessToken(parsed)) {
+            capturedToken = t;
+          }
+        }
+
+        const url = typeof input === 'string' ? input : (input as any)?.url || '';
+        if (url.includes('protocol/openid-connect/token') && init?.body) {
+          const bodyStr = typeof init.body === 'string' ? init.body : '';
+          const params = new URLSearchParams(bodyStr);
+          const rt = params.get('refresh_token');
+          if (rt) capturedRefreshToken = rt;
         }
       } catch {}
       return origFetch.apply(this, args);
@@ -255,7 +328,10 @@ try {
       try {
         if (name?.toLowerCase() === 'authorization' && val?.toLowerCase().startsWith('bearer ')) {
           const t = val.replace(/^bearer\s+/i, '').trim();
-          if (t.length > 20) capturedToken = t;
+          const parsed = parseJwt(t);
+          if (parsed && isAccessToken(parsed)) {
+            capturedToken = t;
+          }
         }
       } catch {}
       return origSetHeader.apply(this, [name, val]);
@@ -263,23 +339,188 @@ try {
   }
 } catch {}
 
-function getAuthToken(): string | null {
-  if (capturedToken) return capturedToken;
-  if (typeof window === 'undefined') return null;
+async function refreshKeycloakToken(
+  refreshToken: string,
+  iss?: string,
+  azp?: string
+): Promise<string | null> {
+  if (!refreshToken) return null;
+  try {
+    const baseRealm = iss ? iss.replace(/\/+$/, '') : 'https://keycloak-zenity.zup.com.br/auth/realms/zupinternal';
+    const endpoint = `${baseRealm}/protocol/openid-connect/token`;
+    const clientId = azp || 'realwave_zupper_csp_ui';
 
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken.trim(),
+      client_id: clientId,
+    });
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: '*/*',
+      },
+      credentials: 'omit',
+      body: body.toString(),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.access_token) {
+        capturedToken = data.access_token;
+        if (data.refresh_token) capturedRefreshToken = data.refresh_token;
+
+        try {
+          for (let i = 0; i < sessionStorage.length; i++) {
+            const k = sessionStorage.key(i);
+            if (k && k.startsWith('oidc.user:')) {
+              const item = JSON.parse(sessionStorage.getItem(k) || '{}');
+              item.access_token = data.access_token;
+              if (data.refresh_token) item.refresh_token = data.refresh_token;
+              if (data.id_token) item.id_token = data.id_token;
+              if (data.expires_in) item.expires_at = Math.floor(Date.now() / 1000) + data.expires_in;
+              sessionStorage.setItem(k, JSON.stringify(item));
+            }
+          }
+        } catch {}
+
+        return data.access_token;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+async function triggerSilentSsoCheck(): Promise<string | null> {
+  if (typeof window === 'undefined' || !document.body) return null;
+  return new Promise((resolve) => {
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.id = 'zup-logbook-sso-iframe';
+
+      const redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
+      const state = Math.random().toString(36).substring(2);
+      const nonce = Math.random().toString(36).substring(2);
+      const ssoUrl = `https://keycloak-zenity.zup.com.br/auth/realms/zupinternal/protocol/openid-connect/auth?client_id=realwave_zupper_csp_ui&redirect_uri=${redirectUri}&response_mode=fragment&response_type=code%20id_token%20token&scope=openid&prompt=none&state=${state}&nonce=${nonce}`;
+
+      let timer: any = null;
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        try {
+          if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        } catch {}
+      };
+
+      timer = setTimeout(() => {
+        cleanup();
+        resolve(null);
+      }, 3000);
+
+      iframe.onload = () => {
+        try {
+          const href = iframe.contentWindow?.location.href || '';
+          if (href.includes('access_token=')) {
+            const hash = href.split('#')[1] || href.split('?')[1] || '';
+            const params = new URLSearchParams(hash);
+            const at = params.get('access_token');
+            const rt = params.get('refresh_token');
+            if (at) {
+              capturedToken = at;
+              if (rt) capturedRefreshToken = rt;
+              cleanup();
+              resolve(at);
+              return;
+            }
+          }
+        } catch {}
+      };
+
+      iframe.src = ssoUrl;
+      document.body.appendChild(iframe);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function getAuthToken(forceRefresh = false): Promise<string | null> {
+  const now = Date.now();
+  const minValidityMs = 15000;
+
+  let bestRefreshToken: { token: string; iss?: string; azp?: string } | null = null;
+  if (capturedRefreshToken) {
+    const p = parseJwt(capturedRefreshToken);
+    bestRefreshToken = { token: capturedRefreshToken, iss: p?.iss, azp: p?.azp };
+  }
+
+  // 1. Checa Keycloak no window (win.keycloak)
   const win = window as any;
-  if (win.keycloak?.token) return win.keycloak.token;
+  if (win?.keycloak) {
+    try {
+      if (typeof win.keycloak.updateToken === 'function') {
+        await win.keycloak.updateToken(forceRefresh ? 999999 : 30);
+      }
+      if (win.keycloak.refreshToken && !bestRefreshToken) {
+        const p = parseJwt(win.keycloak.refreshToken);
+        bestRefreshToken = { token: win.keycloak.refreshToken, iss: p?.iss, azp: p?.azp };
+      }
+      if (win.keycloak.token) {
+        const parsed = parseJwt(win.keycloak.token);
+        if (parsed && isAccessToken(parsed) && (forceRefresh ? false : parsed.exp > now + minValidityMs)) {
+          return win.keycloak.token;
+        }
+      }
+    } catch {}
+  }
 
-  const candidates: { token: string; exp: number }[] = [];
+  // 2. Se não estiver forçando refresh e tivermos capturedToken válido
+  if (!forceRefresh && capturedToken) {
+    const parsed = parseJwt(capturedToken);
+    if (parsed && isAccessToken(parsed) && parsed.exp > now + minValidityMs) {
+      return capturedToken;
+    }
+  }
+
+  // 3. Inspeção direta de OIDC no sessionStorage e localStorage
+  const storages = [sessionStorage, localStorage];
+  for (const st of storages) {
+    try {
+      for (let i = 0; i < st.length; i++) {
+        const k = st.key(i);
+        if (k && k.startsWith('oidc.user:')) {
+          const item = JSON.parse(st.getItem(k) || '{}');
+          if (item.refresh_token && !bestRefreshToken) {
+            const p = parseJwt(item.refresh_token);
+            bestRefreshToken = { token: item.refresh_token, iss: p?.iss, azp: p?.azp };
+          }
+          if (item.access_token) {
+            const parsed = parseJwt(item.access_token);
+            if (parsed && isAccessToken(parsed) && (forceRefresh ? false : parsed.exp > now + minValidityMs)) {
+              return item.access_token;
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Varredura profunda de JWTs em todas as chaves de storage, cookies e variáveis globais
+  const accessCandidates: DecodedToken[] = [];
   const check = (str: string) => {
     if (!str || typeof str !== 'string') return;
     const matches = str.match(/eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+/g);
     if (!matches) return;
     for (const m of matches) {
-      try {
-        const p = JSON.parse(atob(m.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-        candidates.push({ token: m, exp: p.exp ? p.exp * 1000 : Infinity });
-      } catch {}
+      const p = parseJwt(m);
+      if (!p) continue;
+      if (isRefreshToken(p)) {
+        if (!bestRefreshToken) bestRefreshToken = { token: m, iss: p.iss, azp: p.azp };
+      } else if (isAccessToken(p)) {
+        accessCandidates.push(p);
+      }
     }
   };
 
@@ -303,11 +544,40 @@ function getAuthToken(): string | null {
     try { if (win[k]) check(typeof win[k] === 'string' ? win[k] : JSON.stringify(win[k])); } catch {}
   }
 
-  if (candidates.length > 0) {
-    const now = Date.now();
-    const valid = candidates.filter((c) => c.exp > now);
-    return valid.length > 0 ? valid[0].token : candidates[0].token;
+  // Filtra candidatos válidos (não expirados)
+  if (!forceRefresh && accessCandidates.length > 0) {
+    const valid = accessCandidates.filter((c) => c.exp > now + minValidityMs);
+    if (valid.length > 0) {
+      valid.sort((a, b) => {
+        const aBearer = a.typ === 'bearer' ? 1 : 0;
+        const bBearer = b.typ === 'bearer' ? 1 : 0;
+        if (aBearer !== bBearer) return bBearer - aBearer;
+        return b.exp - a.exp;
+      });
+      return valid[0].token;
+    }
   }
+
+  // 5. Tenta renovar via refresh token se disponível
+  if (bestRefreshToken) {
+    const refreshed = await refreshKeycloakToken(
+      bestRefreshToken.token,
+      bestRefreshToken.iss,
+      bestRefreshToken.azp
+    );
+    if (refreshed) return refreshed;
+  }
+
+  // 6. Silent SSO via iframe
+  const ssoToken = await triggerSilentSsoCheck();
+  if (ssoToken) return ssoToken;
+
+  // Fallback: se houver qualquer access token não nulo
+  if (accessCandidates.length > 0) {
+    accessCandidates.sort((a, b) => b.exp - a.exp);
+    return accessCandidates[0].token;
+  }
+
   return null;
 }
 
@@ -520,23 +790,27 @@ export function mountZupLogbook() {
       return;
     }
 
-    const token = getAuthToken();
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Autenticando...';
+    clearStatus();
+
+    let token = await getAuthToken();
     if (!token) {
-      showStatus('error', 'Token de autenticação não encontrado na página.');
+      showStatus('error', 'Token de autenticação (Access Token) não encontrado na página.');
+      submitBtn.textContent = 'Enviar';
+      submitBtn.disabled = !textarea.value.trim();
       return;
     }
 
-    submitBtn.disabled = true;
     submitBtn.textContent = 'Enviando...';
-    clearStatus();
 
-    try {
+    const doSubmit = async (authToken: string) => {
       const res = await fetch('https://apiznt.zenity.zup.com.br/dune/v1/entry', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: '*/*',
-          authorization: `Bearer ${token}`,
+          authorization: `Bearer ${authToken}`,
         },
         credentials: 'omit',
         body: JSON.stringify(payload),
@@ -544,15 +818,40 @@ export function mountZupLogbook() {
 
       const text = await res.text();
       let data: any = {};
-      try { data = JSON.parse(text); } catch { data = { text }; }
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { text };
+      }
+      return { ok: res.ok, status: res.status, data, text };
+    };
 
-      if (res.ok) {
-        showStatus('success', `Relato${data?.id ? ` #${data.id}` : ''} enviado com sucesso!`);
+    try {
+      let result = await doSubmit(token);
+
+      // Se falhar por autorização (401, 403 ou explicit deny na policy), força renovação e reenvia uma vez
+      if (!result.ok && (result.status === 401 || result.status === 403 || result.text.includes('not authorized'))) {
+        submitBtn.textContent = 'Renovando sessão...';
+        const refreshedToken = await getAuthToken(true);
+        if (refreshedToken && refreshedToken !== token) {
+          token = refreshedToken;
+          submitBtn.textContent = 'Reenviando...';
+          result = await doSubmit(token);
+        }
+      }
+
+      if (result.ok) {
+        showStatus('success', `Relato${result.data?.id ? ` #${result.data.id}` : ''} enviado com sucesso!`);
         textarea.value = '';
         submitBtn.disabled = true;
       } else {
-        const msg = data?.message || data?.error || text || `Status HTTP ${res.status}`;
-        showStatus('error', `Falha (${res.status}): ${msg}`);
+        const msg =
+          result.data?.message ||
+          result.data?.Message ||
+          result.data?.error ||
+          result.text ||
+          `Status HTTP ${result.status}`;
+        showStatus('error', `Falha (${result.status}): ${msg}`);
       }
     } catch (err: any) {
       showStatus('error', `Erro de conexão: ${err.message}`);
