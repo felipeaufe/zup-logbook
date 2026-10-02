@@ -23,12 +23,12 @@ export function mountZupLogbook() {
   host.style.position = 'fixed';
   host.style.top = '0';
   host.style.right = '0';
-  host.style.width = '720px';
+  host.style.width = '100vw';
   host.style.maxWidth = '100vw';
   host.style.height = '100vh';
   host.style.zIndex = '2147483647'; // Fica acima de qualquer elemento da página
   host.style.boxShadow = '-8px 0 32px rgba(0, 0, 0, 0.6)';
-  host.style.transition = 'transform 0.25s ease-in-out';
+  host.style.transition = 'width 0.25s ease-in-out, transform 0.25s ease-in-out';
 
   // Cria a Shadow DOM para isolar completamente o CSS do People Zup e do Tailwind
   const shadowRoot = host.attachShadow({ mode: 'open' });

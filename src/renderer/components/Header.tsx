@@ -1,17 +1,19 @@
 import React from 'react';
 import { AuthSession } from '../../types';
-import { Settings, LogOut, LogIn, BookOpen, ShieldCheck, ShieldAlert, X, Loader2, RotateCcw } from 'lucide-react';
+import { Settings, LogIn, BookOpen, X, Loader2, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
 
 interface HeaderProps {
   session: AuthSession;
   isLoggingIn?: boolean;
   onOpenLogin: () => void;
   onCancelLogin?: () => void;
-  onLogout: () => void;
+  onLogout?: () => void;
   onOpenSettings: () => void;
   onNewEntry?: () => void;
   onClose?: () => void;
   hasMessages?: boolean;
+  isFullWidth?: boolean;
+  onToggleWidth?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,23 +21,31 @@ export const Header: React.FC<HeaderProps> = ({
   isLoggingIn = false,
   onOpenLogin,
   onCancelLogin,
-  onLogout,
   onOpenSettings,
   onNewEntry,
   onClose,
   hasMessages = false,
+  isFullWidth = true,
+  onToggleWidth,
 }) => {
   const isAuthenticated = Boolean(session.token);
 
-  const getCleanUserName = (): string | null => {
-    if (!session.user) return null;
-    let name = (session.user.name || session.user.email || '').trim();
-    if (!name) return null;
-    const parts = name.split(/\s+/);
-    if (parts.length === 2 && parts[0].toLowerCase() === parts[1].toLowerCase()) {
-      return parts[0];
+  const getUserDisplayName = (): string => {
+    if (!session.user) return '';
+    if (session.user.name && session.user.name.trim()) {
+      const parts = session.user.name.trim().split(/\s+/);
+      if (parts.length === 2 && parts[0].toLowerCase() === parts[1].toLowerCase()) {
+        return parts[0];
+      }
+      return session.user.name.trim();
     }
-    return name;
+    if (session.user.username && session.user.username.trim()) {
+      return session.user.username.trim();
+    }
+    if (session.user.email && session.user.email.trim()) {
+      return session.user.email.trim();
+    }
+    return 'Zupper';
   };
 
   return (
@@ -55,38 +65,34 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Session status & actions */}
       <div className="flex items-center gap-3">
-        {/* Status pill */}
-        <div
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-sm font-medium transition-all ${
-            isAuthenticated
-              ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
-              : isLoggingIn
-              ? 'bg-blue-950/40 border-blue-500/30 text-blue-300'
-              : 'bg-amber-950/40 border-amber-500/30 text-amber-300'
-          }`}
-        >
-          {isAuthenticated ? (
-            <>
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Conectado ao People</span>
-              {getCleanUserName() && (
-                <span className="text-emerald-400/80 font-normal">({getCleanUserName()})</span>
-              )}
-            </>
-          ) : isLoggingIn ? (
-            <>
-              <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
-              <span>Aguardando autenticação e 2FA...</span>
-            </>
-          ) : (
-            <>
-              <ShieldAlert className="w-4 h-4 text-amber-400" />
-              <span>Não autenticado</span>
-            </>
-          )}
-        </div>
+        {/* User Info (when authenticated) */}
+        {isAuthenticated ? (
+          <div
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#181B26] border border-[#2B3042] text-gray-200 text-sm font-medium"
+            title={session.user?.email ? `Logado como: ${session.user.email}` : undefined}
+          >
+            <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-xs font-bold text-white uppercase shadow-sm">
+              {getUserDisplayName().charAt(0)}
+            </div>
+            <span className="font-semibold text-gray-100">{getUserDisplayName()}</span>
+          </div>
+        ) : isLoggingIn ? (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-950/40 border border-blue-500/30 text-blue-300 text-sm">
+            <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+            <span>Verificando sessão...</span>
+          </div>
+        ) : (
+          <button
+            onClick={onOpenLogin}
+            title="Conectar ao People Zup"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium shadow-md shadow-purple-600/20 transition-all hover:scale-[1.02] cursor-pointer"
+          >
+            <LogIn className="w-4 h-4" />
+            <span>Conectar</span>
+          </button>
+        )}
 
-        {/* Buttons */}
+        {/* New entry button */}
         {hasMessages && onNewEntry && (
           <button
             onClick={onNewEntry}
@@ -98,32 +104,18 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        {isAuthenticated ? (
+        {/* Toggle width button: 100% <-> 720px */}
+        {onToggleWidth && (
           <button
-            onClick={onLogout}
-            title="Desconectar do People Zup"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#2A2D3A] text-gray-300 hover:text-white hover:bg-rose-500/10 hover:border-rose-500/30 text-sm font-medium transition-colors"
+            onClick={onToggleWidth}
+            title={isFullWidth ? "Diminuir para 720px (painel lateral)" : "Expandir para 100% (tela cheia)"}
+            className="p-2 rounded-lg border border-[#2A2D3A] text-gray-400 hover:text-white hover:bg-[#1A1D27] hover:border-gray-600 transition-colors cursor-pointer"
           >
-            <LogOut className="w-4 h-4" />
-            <span>Sair</span>
-          </button>
-        ) : isLoggingIn ? (
-          <button
-            onClick={onCancelLogin}
-            title="Cancelar e fechar tela de login"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-300 hover:bg-rose-500/30 text-sm font-medium transition-all"
-          >
-            <X className="w-4 h-4" />
-            <span>Cancelar Login</span>
-          </button>
-        ) : (
-          <button
-            onClick={onOpenLogin}
-            title="Conectar ao People Zup"
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium shadow-md shadow-purple-600/20 transition-all hover:scale-[1.02] cursor-pointer"
-          >
-            <LogIn className="w-4 h-4" />
-            <span>Entrar no People</span>
+            {isFullWidth ? (
+              <Minimize2 className="w-4 h-4 text-gray-300 hover:text-white" />
+            ) : (
+              <Maximize2 className="w-4 h-4 text-gray-300 hover:text-white" />
+            )}
           </button>
         )}
 
@@ -131,7 +123,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={onOpenSettings}
           title="Configurações (StackSpot AI, Endpoints, Regras)"
-          className="p-2 rounded-lg border border-[#2A2D3A] text-gray-400 hover:text-white hover:bg-[#1A1D27] hover:border-gray-600 transition-colors"
+          className="p-2 rounded-lg border border-[#2A2D3A] text-gray-400 hover:text-white hover:bg-[#1A1D27] hover:border-gray-600 transition-colors cursor-pointer"
         >
           <Settings className="w-4 h-4" />
         </button>
@@ -141,7 +133,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onClose}
             title="Fechar / Ocultar Zup Logbook"
-            className="p-2 rounded-lg border border-[#2A2D3A] text-gray-400 hover:text-white hover:bg-rose-500/20 hover:border-rose-500/40 transition-colors"
+            className="p-2 rounded-lg border border-[#2A2D3A] text-gray-400 hover:text-white hover:bg-rose-500/20 hover:border-rose-500/40 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4 text-gray-300 hover:text-white" />
           </button>

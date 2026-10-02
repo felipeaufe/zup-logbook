@@ -76,6 +76,16 @@ export const App: React.FC<AppProps> = ({ onClose }) => {
   );
   const [activeMode, setActiveMode] = useState<'performance' | 'livre' | null>(null);
   const [competences, setCompetences] = useState<CompetenceItem[]>(ALL_COMPETENCES);
+  const [isFullWidth, setIsFullWidth] = useState(true);
+
+  const handleToggleWidth = () => {
+    const next = !isFullWidth;
+    setIsFullWidth(next);
+    const host = document.getElementById('zup-logbook-host');
+    if (host) {
+      host.style.width = next ? '100vw' : '720px';
+    }
+  };
 
   const showToast = (type: 'success' | 'error' | 'info', message: string) => {
     setToast({ type, message });
@@ -462,6 +472,8 @@ export const App: React.FC<AppProps> = ({ onClose }) => {
         }}
         onClose={onClose}
         hasMessages={currentScreen === 'chat' && messages.length > 0}
+        isFullWidth={isFullWidth}
+        onToggleWidth={handleToggleWidth}
       />
 
       {/* Screen Router */}

@@ -21,9 +21,10 @@ function decodeJwtPayload(token: string): any {
   return null;
 }
 
-function extractCleanUserInfo(payload: any): { name?: string; email?: string } {
+function extractCleanUserInfo(payload: any): { name?: string; username?: string; email?: string } {
   if (!payload) return {};
   const email = (payload.email || payload.upn || payload.unique_name || '').trim();
+  const username = (payload.preferred_username || (email ? email.split('@')[0] : '') || payload.sub || '').trim();
 
   let candidateName = '';
   if (payload.name && typeof payload.name === 'string') {
@@ -41,16 +42,9 @@ function extractCleanUserInfo(payload: any): { name?: string; email?: string } {
     }
   }
 
-  if (!candidateName && payload.preferred_username) {
-    candidateName = payload.preferred_username.trim();
-  }
-
-  if (!candidateName) {
-    candidateName = email ? email.split('@')[0] : payload.sub || '';
-  }
-
   return {
-    name: candidateName,
+    name: candidateName || undefined,
+    username: username || undefined,
     email: email || undefined,
   };
 }

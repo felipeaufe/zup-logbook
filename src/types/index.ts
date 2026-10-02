@@ -9,6 +9,7 @@ export interface AuthSession {
   cookies: Record<string, string>;
   user: {
     name?: string;
+    username?: string;
     email?: string;
     avatarUrl?: string;
   } | null;
