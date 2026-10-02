@@ -283,15 +283,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <input
                       type="text"
                       placeholder="zup"
-                      value={formData.stackspotRealm || 'zup'}
+                      value={formData.stackspotRealm ?? ''}
                       onChange={(e) =>
                         setFormData({ ...formData, stackspotRealm: e.target.value })
                       }
                       className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-purple-500 font-mono"
                     />
-                    <span className="text-xs text-gray-500 mt-1 block">
-                      Padrão: <code>zup</code>. Se o seu time utiliza outro realm/slug no IDM da StackSpot, altere aqui.
-                    </span>
+                    <div className="text-xs text-gray-400 mt-1.5 p-2 rounded-lg bg-[#0F111A] border border-[#262A3B]">
+                      <span className="text-gray-500 block mb-0.5">Endpoint OAuth2 efetivo:</span>
+                      <code className="text-purple-400 break-all text-[11px]">
+                        https://idm.stackspot.com/<strong className="text-white underline">{cleanCred(formData.stackspotRealm) || 'zup'}</strong>/oidc/oauth/token
+                      </code>
+                    </div>
                   </div>
 
                   {/* Botão de teste de conexão com a StackSpot */}

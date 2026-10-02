@@ -66,13 +66,15 @@ export class AiService {
   ): Promise<{ success: boolean; message: string }> {
     try {
       this.stackspotTokenCache = null; // força requisição limpa
+      const realm = this.cleanCred(settings.stackspotRealm) || 'zup';
+      const tokenUrl = `https://idm.stackspot.com/${realm}/oidc/oauth/token`;
       const token = await this.getStackSpotAccessToken(settings);
       if (!token) {
         return { success: false, message: 'Nenhum token foi retornado pelo provedor.' };
       }
       return {
         success: true,
-        message: 'Conexão bem-sucedida! Token de acesso StackSpot obtido e autenticado.',
+        message: `Conexão bem-sucedida! Token de acesso obtido via OAuth2 no Realm "${realm}" (${tokenUrl}).`,
       };
     } catch (err: any) {
       return { success: false, message: err.message };
@@ -105,7 +107,7 @@ export class AiService {
       );
     }
 
-    console.log(`[StackSpot Auth] Solicitando token OAuth2 para realm: ${realm}`);
+    console.log(`[StackSpot Auth] Solicitando token OAuth2 para URL: ${tokenUrl} (realm: "${realm}")`);
 
     // Método 1: Body x-www-form-urlencoded com client_id e client_secret (padrão StackSpot)
     const bodyParams = new URLSearchParams();
@@ -149,9 +151,9 @@ export class AiService {
       const err = await res.text();
       let hint = '';
       if (res.status === 401 && err.includes('invalid_client')) {
-        hint = ` -> Verifique: 1) Se o Realm '${realm}' está correto (ex: 'zup' ou o slug da sua conta/workspace); 2) Se o Client ID e Client Secret não contêm aspas ou caracteres extras; 3) Se as credenciais foram criadas nesse realm. Como alternativa rápida, você pode gerar um Personal Access Token (PAT) no portal da StackSpot e colar no campo PAT acima.`;
+        hint = ` -> Verifique: 1) Se o Realm '${realm}' está correto (ex: 'zup' ou o slug da sua conta/workspace na StackSpot); 2) Se o Client ID e Client Secret não contêm aspas ou caracteres extras; 3) Se as credenciais foram criadas nesse realm. Como alternativa rápida, você pode gerar um Personal Access Token (PAT) no portal da StackSpot e colar no campo PAT acima.`;
       }
-      throw new Error(`Falha na autenticação StackSpot (${res.status}): ${err}${hint}`);
+      throw new Error(`Falha na autenticação StackSpot (${res.status}): ${err} [Endpoint: ${tokenUrl}]${hint}`);
     }
 
     const data = await res.json();
