@@ -8,7 +8,12 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+
+# dist files for public CDN hosting on branch bookmarklet
+dist/*
+!dist/zup-logbook.bookmarklet.js
+!dist/bookmarklet.txt
+!dist/index.html
 dist-electron
 release
 

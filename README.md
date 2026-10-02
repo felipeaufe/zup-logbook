@@ -1,6 +1,19 @@
-# Zup Logbook - Diário de Bordo Inteligente (Electron + IA)
+# Zup Logbook - Diário de Bordo Inteligente (Bookmarklet & IA)
 
-Um aplicativo desktop moderno e intuitivo construído com **Electron**, **React**, **TypeScript** e **Tailwind CSS** para automatizar o registro de diários de bordo no **People Zup** (`people.zup.com.br`).
+> 💡 **Versão Bookmarklet**: Esta branch (`bookmarklet`) contém a versão Bookmarklet que roda diretamente dentro da página do People Zup, sem necessidade de instalar aplicativos ou rodar servidores locais!
+
+---
+
+## ⚡ Como Usar via Bookmarklet (Instalação Rápida)
+
+1. Crie um novo favorito no seu navegador (ou exiba a Barra de Favoritos com `Ctrl + Shift + B`).
+2. Defina o nome como: `⭐ Zup Logbook`
+3. No campo **URL**, cole o seguinte código:
+```javascript
+javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){h.style.display=h.style.display==='none'?'block':'none';return;}const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/felipeaufe/zup-logbook@bookmarklet/dist/zup-logbook.bookmarklet.js?t='+Date.now();document.body.appendChild(s);})();
+```
+4. Acesse o portal do **People Zup** (`https://people.zup.com.br/career/logbook`).
+5. Clique no seu favorito **⭐ Zup Logbook**. O painel do assistente abrirá diretamente na sua tela aproveitando sua sessão já autenticada!
 
 ---
 
