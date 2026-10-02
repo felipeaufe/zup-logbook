@@ -84,22 +84,17 @@ export const App: React.FC<AppProps> = ({ onClose }) => {
     setIsFullWidth(next);
     const host = document.getElementById('zup-logbook-host');
     if (host) {
-      if (next) {
-        host.style.width = '100vw';
+      // Mantém ancorado no lado correto (dockSide) durante o esticar/recolher
+      if (dockSide === 'left') {
         host.style.left = '0';
-        host.style.right = '0';
+        host.style.right = 'auto';
+        host.style.boxShadow = '8px 0 32px rgba(0, 0, 0, 0.6)';
       } else {
-        host.style.width = '720px';
-        if (dockSide === 'left') {
-          host.style.left = '0';
-          host.style.right = 'auto';
-          host.style.boxShadow = '8px 0 32px rgba(0, 0, 0, 0.6)';
-        } else {
-          host.style.left = 'auto';
-          host.style.right = '0';
-          host.style.boxShadow = '-8px 0 32px rgba(0, 0, 0, 0.6)';
-        }
+        host.style.left = 'auto';
+        host.style.right = '0';
+        host.style.boxShadow = '-8px 0 32px rgba(0, 0, 0, 0.6)';
       }
+      host.style.width = next ? '100vw' : '720px';
     }
   };
 
