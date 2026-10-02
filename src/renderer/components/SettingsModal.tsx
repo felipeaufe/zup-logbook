@@ -1,6 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppSettings, AuthSession } from '../../types';
-import { X, Key, Globe, Sparkles, Shield, Save, Eye, EyeOff, Check, Copy, RefreshCw, AlertCircle, RotateCcw } from 'lucide-react';
+import {
+  X,
+  Key,
+  Globe,
+  Sparkles,
+  Shield,
+  Save,
+  Eye,
+  EyeOff,
+  Check,
+  Copy,
+  RefreshCw,
+  AlertCircle,
+  RotateCcw,
+  ChevronDown,
+  Bot,
+  Cpu,
+} from 'lucide-react';
 import {
   DEFAULT_INSTRUCTIONS,
   DEFAULT_LEADERSHIP_TEMPLATE,
@@ -35,6 +52,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [copiedToken, setCopiedToken] = useState(false);
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
   const [refreshFeedback, setRefreshFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [isProviderSelectOpen, setIsProviderSelectOpen] = useState(false);
+  const providerSelectRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (providerSelectRef.current && !providerSelectRef.current.contains(event.target as Node)) {
+        setIsProviderSelectOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     setFormData(settings);
@@ -162,19 +191,125 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-5">
           {activeTab === 'ai' && (
             <div className="space-y-4">
-              <div>
+              <div className="relative" ref={providerSelectRef}>
                 <label className="block text-sm font-semibold text-gray-300 mb-1.5">
                   Provedor de IA Selecionado
                 </label>
-                <select
-                  value={formData.aiProvider}
-                  onChange={(e) => setFormData({ ...formData, aiProvider: e.target.value as any })}
-                  className="w-full bg-[#1A1D2B] border border-[#2D3247] rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:border-purple-500"
-                >
-                  <option value="stackspot">StackSpot AI (Oficial Zup)</option>
-                  <option value="gemini">Google Gemini (Alternativa)</option>
-                  <option value="openai">OpenAI (GPT-4o / GPT-4o-mini)</option>
-                </select>
+                
+                {(() => {
+                  const providers = [
+                    {
+                      id: 'stackspot' as const,
+                      name: 'StackSpot AI (Oficial Zup)',
+                      description: 'Recomendado • Suporte a PAT, OAuth2 e Quick Commands',
+                      badge: 'Oficial Zup',
+                      icon: Sparkles,
+                      iconColor: 'text-purple-400',
+                    },
+                    {
+                      id: 'gemini' as const,
+                      name: 'Google Gemini (Alternativa)',
+                      description: 'Modelos gemini-2.5-flash e gemini-pro via API Key',
+                      badge: 'Google Cloud',
+                      icon: Bot,
+                      iconColor: 'text-blue-400',
+                    },
+                    {
+                      id: 'openai' as const,
+                      name: 'OpenAI (GPT-4o / GPT-4o-mini)',
+                      description: 'Modelos GPT-4o e GPT-4o-mini via API Key',
+                      badge: 'OpenAI',
+                      icon: Cpu,
+                      iconColor: 'text-emerald-400',
+                    },
+                  ];
+
+                  const currentProvider = providers.find((p) => p.id === formData.aiProvider) || providers[0];
+                  const CurrentIcon = currentProvider.icon;
+
+                  return (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsProviderSelectOpen(!isProviderSelectOpen)}
+                        className={`w-full bg-[#1A1D2B] border rounded-xl px-4 py-3 text-left flex items-center justify-between transition-all cursor-pointer select-none ${
+                          isProviderSelectOpen
+                            ? 'border-purple-500 ring-2 ring-purple-500/20 shadow-lg shadow-purple-500/10'
+                            : 'border-[#2D3247] hover:border-purple-500/50 hover:bg-[#1E2234]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg bg-[#141624] border border-[#272B3E] ${currentProvider.iconColor}`}>
+                            <CurrentIcon className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-white text-sm">
+                                {currentProvider.name}
+                              </span>
+                              <span className="text-[11px] px-2 py-0.5 rounded font-medium bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                                {currentProvider.badge}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-0.5">{currentProvider.description}</p>
+                          </div>
+                        </div>
+                        <ChevronDown
+                          className={`w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0 ml-2 ${
+                            isProviderSelectOpen ? 'rotate-180 text-purple-400' : ''
+                          }`}
+                        />
+                      </button>
+
+                      {isProviderSelectOpen && (
+                        <div className="absolute left-0 right-0 top-full mt-2 bg-[#171926] border border-[#2D3247] rounded-xl shadow-2xl overflow-hidden z-50 p-1.5 space-y-1 backdrop-blur-md">
+                          {providers.map((provider) => {
+                            const isSelected = formData.aiProvider === provider.id;
+                            const Icon = provider.icon;
+                            return (
+                              <div
+                                key={provider.id}
+                                onClick={() => {
+                                  setFormData({ ...formData, aiProvider: provider.id });
+                                  setIsProviderSelectOpen(false);
+                                }}
+                                className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
+                                  isSelected
+                                    ? 'bg-purple-600/20 border border-purple-500/50 text-white'
+                                    : 'hover:bg-[#202436] text-gray-300 hover:text-white border border-transparent'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className={`p-2 rounded-lg bg-[#12141F] border border-[#262A3D] ${provider.iconColor}`}
+                                  >
+                                    <Icon className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-sm">{provider.name}</span>
+                                      <span
+                                        className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${
+                                          isSelected
+                                            ? 'bg-purple-500/30 text-purple-200'
+                                            : 'bg-[#22273A] text-gray-400'
+                                        }`}
+                                      >
+                                        {provider.badge}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-0.5">{provider.description}</p>
+                                  </div>
+                                </div>
+                                {isSelected && <Check className="w-4 h-4 text-purple-400 shrink-0" />}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {formData.aiProvider === 'stackspot' && (
