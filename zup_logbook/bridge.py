@@ -1,4 +1,5 @@
 import json
+import threading
 from typing import Dict, Any, List, Optional
 import webview
 
@@ -10,19 +11,20 @@ from .competences import get_available_competences
 
 class BridgeAPI:
     def __init__(self):
-        self.main_window: Optional[webview.Window] = None
+        # Prefixo _ evita que o pywebview inspecione/serialize atributos internos para o JS
+        self._main_window: Optional[webview.Window] = None
 
     def set_window(self, window: webview.Window):
-        self.main_window = window
+        self._main_window = window
         auth_manager.set_main_window(window)
 
     def emit_event(self, event_name: str, payload: Any):
-        if not self.main_window:
+        if not self._main_window:
             return
         try:
             payload_json = json.dumps(payload, ensure_ascii=False)
             script = f"window.dispatchEvent(new CustomEvent('{event_name}', {{ detail: {payload_json} }}));"
-            self.main_window.evaluate_js(script)
+            self._main_window.evaluate_js(script)
         except Exception as e:
             print(f"[Bridge] Erro ao emitir evento {event_name}: {e}")
 
@@ -36,14 +38,16 @@ class BridgeAPI:
         def on_auth(session_data):
             self.emit_event("py:auth-status-changed", session_data)
             if session_data.get("token"):
-                try:
-                    comps = api_client.fetch_competences(force_refresh=True)
-                    self.emit_event("py:competences-updated", comps)
-                except Exception as e:
-                    print(f"[Bridge] Erro ao buscar competências pós login: {e}")
+                def _fetch_comps():
+                    try:
+                        comps = api_client.fetch_competences(force_refresh=True)
+                        self.emit_event("py:competences-updated", comps)
+                    except Exception as e:
+                        print(f"[Bridge] Erro ao buscar competências pós login: {e}")
+                threading.Thread(target=_fetch_comps, daemon=True).start()
 
         def on_close():
-            print("[Bridge] Login embutido ou janela fechada sem autenticar")
+            print("[Bridge] Login embutido fechado/cancelado")
             self.emit_event("py:auth-status-changed", storage.get_session())
 
         auth_manager.open_login(callback=on_auth, on_close=on_close)
@@ -59,11 +63,13 @@ class BridgeAPI:
         session = auth_manager.set_manual_token(token, refreshToken)
         self.emit_event("py:auth-status-changed", session)
         if session.get("token"):
-            try:
-                comps = api_client.fetch_competences(force_refresh=True)
-                self.emit_event("py:competences-updated", comps)
-            except Exception as e:
-                print(f"[Bridge] Erro ao buscar competências: {e}")
+            def _fetch_comps():
+                try:
+                    comps = api_client.fetch_competences(force_refresh=True)
+                    self.emit_event("py:competences-updated", comps)
+                except Exception as e:
+                    print(f"[Bridge] Erro ao buscar competências: {e}")
+            threading.Thread(target=_fetch_comps, daemon=True).start()
         return session
 
     def refreshToken(self) -> Dict[str, Any]:
@@ -72,11 +78,13 @@ class BridgeAPI:
         session = storage.get_session()
         self.emit_event("py:auth-status-changed", session)
         if success and session.get("token"):
-            try:
-                comps = api_client.fetch_competences(force_refresh=True)
-                self.emit_event("py:competences-updated", comps)
-            except Exception as e:
-                print(f"[Bridge] Erro ao buscar competências após refresh: {e}")
+            def _fetch_comps():
+                try:
+                    comps = api_client.fetch_competences(force_refresh=True)
+                    self.emit_event("py:competences-updated", comps)
+                except Exception as e:
+                    print(f"[Bridge] Erro ao buscar competências após refresh: {e}")
+            threading.Thread(target=_fetch_comps, daemon=True).start()
         return {"success": success, "session": session}
 
     def logout(self) -> Dict[str, Any]:

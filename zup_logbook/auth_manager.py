@@ -3,6 +3,7 @@ import json
 import random
 import string
 import time
+import threading
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, Callable
@@ -56,6 +57,8 @@ class AuthManager:
         self.on_auth_callback: Optional[Callable[[dict], None]] = None
         self.on_close_callback: Optional[Callable[[], None]] = None
         self.is_refreshing = False
+        self.is_exchanging_code = False
+        self.login_completed = False
 
     def set_main_window(self, window: webview.Window):
         self.main_window = window
@@ -81,6 +84,8 @@ class AuthManager:
         if on_close:
             self.on_close_callback = on_close
 
+        self.login_completed = False
+
         # 1. Tenta abrir embutido na MESMA JANELA principal (abaixo do Header de 64px)
         if self._try_open_embedded():
             return
@@ -96,7 +101,7 @@ class AuthManager:
             import gi
             gi.require_version("Gtk", "3.0")
             gi.require_version("WebKit2", "4.1")
-            from gi.repository import Gtk, WebKit2, GLib
+            from gi.repository import Gtk, WebKit2, GLib, Gdk
             from webview.platforms.gtk import BrowserView
         except Exception as e:
             print(f"[Auth] Modo embutido GTK não disponível: {e}")
@@ -138,8 +143,14 @@ class AuthManager:
                     self.embedded_login_wv = None
 
                 login_wv = WebKit2.WebView()
-                # Começa exatamente 64px abaixo do topo, preservando o Header com o botão 'Cancelar Login'
                 login_wv.set_margin_top(64)
+                login_wv.set_hexpand(True)
+                login_wv.set_vexpand(True)
+
+                # Cor de fundo escura oficial para evitar qualquer flicker cinza
+                bg_color = Gdk.RGBA()
+                bg_color.parse("#0D0E12")
+                login_wv.set_background_color(bg_color)
 
                 def on_load_changed(wv, load_event):
                     if load_event in (WebKit2.LoadEvent.COMMITTED, WebKit2.LoadEvent.FINISHED):
@@ -169,7 +180,7 @@ class AuthManager:
                 self.embedded_login_wv = login_wv
                 self.overlay.add_overlay(login_wv)
                 login_wv.load_uri(target_url)
-                login_wv.show()
+                login_wv.show_all()
             except Exception as ex:
                 print(f"[Auth] Erro ao montar login embutido: {ex}")
             return False
@@ -201,7 +212,7 @@ class AuthManager:
         def on_closed():
             print("[Auth] Janela separada de login fechada pelo usuário.")
             self.login_window = None
-            if self.on_close_callback:
+            if not self.login_completed and self.on_close_callback:
                 self.on_close_callback()
 
         self.login_window.events.closed += on_closed
@@ -219,19 +230,23 @@ class AuthManager:
 
     def close_login_window(self):
         print("[Auth] Fechando tela de autenticação...")
-        if self.embedded_login_wv and self.overlay:
-            def _close():
+        if self.embedded_login_wv:
+            wv_to_remove = self.embedded_login_wv
+            overlay_ref = self.overlay
+            self.embedded_login_wv = None
+
+            def _do_remove():
                 try:
-                    if self.embedded_login_wv and self.overlay:
-                        self.overlay.remove(self.embedded_login_wv)
-                        self.embedded_login_wv.destroy()
-                        self.embedded_login_wv = None
+                    if overlay_ref and wv_to_remove:
+                        overlay_ref.remove(wv_to_remove)
+                        wv_to_remove.destroy()
                 except Exception as e:
                     print(f"[Auth] Erro ao fechar login embutido: {e}")
                 return False
+
             try:
                 from gi.repository import GLib
-                GLib.idle_add(_close)
+                GLib.idle_add(_do_remove)
             except Exception:
                 pass
 
@@ -242,7 +257,7 @@ class AuthManager:
                 print(f"[Auth] Erro ao fechar loginWindow: {e}")
             self.login_window = None
 
-        if self.on_close_callback:
+        if not self.login_completed and self.on_close_callback:
             try:
                 self.on_close_callback()
             except Exception:
@@ -255,42 +270,44 @@ class AuthManager:
         if "access_token=" in url or "code=" in url or "id_token=" in url:
             try:
                 parsed = urlparse(url)
-                params_str = parsed.fragment if parsed.fragment else parsed.query
-                params = parse_qs(params_str)
+                fragment_params = parse_qs(parsed.fragment) if parsed.fragment else {}
+                query_params = parse_qs(parsed.query) if parsed.query else {}
 
-                access_token_list = params.get("access_token")
-                refresh_token_list = params.get("refresh_token")
-                code_list = params.get("code")
+                # 1. PRIORIDADE ABSOLUTA: Verificar se o access_token já veio na URL
+                # (No fluxo hybrid/implicit do Keycloak ele vem imediatamente após o # fragment)
+                access_tokens = fragment_params.get("access_token") or query_params.get("access_token")
+                refresh_tokens = fragment_params.get("refresh_token") or query_params.get("refresh_token")
 
-                access_token = access_token_list[0] if access_token_list else None
-                refresh_token = refresh_token_list[0] if refresh_token_list else None
-                code = code_list[0] if code_list else None
-
-                cookies_dict = {}
-                if self.login_window:
-                    try:
-                        for c in self.login_window.get_cookies():
-                            if hasattr(c, "key") and hasattr(c, "value"):
-                                cookies_dict[c.key] = c.value
-                            elif isinstance(c, dict):
-                                cookies_dict[c.get("name")] = c.get("value")
-                    except Exception:
-                        pass
-
-                if access_token and len(access_token) > 20:
-                    print("[Auth] Access token capturado com sucesso!")
-                    self.handle_token_captured(access_token, refresh_token=refresh_token, cookies=cookies_dict)
+                if access_tokens and len(access_tokens[0]) > 20:
+                    access_token = access_tokens[0]
+                    refresh_token = refresh_tokens[0] if refresh_tokens else None
+                    print("[Auth] Access token capturado com sucesso da URL!")
+                    self.login_completed = True
                     self.close_login_window()
+                    self.handle_token_captured(access_token, refresh_token=refresh_token)
                     return True
 
-                if code:
-                    print("[Auth] Code capturado, trocando por tokens no Keycloak...")
-                    success = self.exchange_code_for_tokens(
-                        code, "https://people.zup.com.br/career/logbook", cookies=cookies_dict
-                    )
-                    if success:
-                        self.close_login_window()
-                        return True
+                # 2. Se e SOMENTE SE NÃO houver access_token na URL, e houver authorization code:
+                # Dispara a troca em THREAD SEPARADA para NUNCA travar a interface gráfica (GTK)
+                codes = query_params.get("code") or fragment_params.get("code")
+                if codes and not self.is_exchanging_code and not self.login_completed:
+                    code = codes[0]
+                    self.is_exchanging_code = True
+                    print("[Auth] Code detectado sem access_token. Disparando troca assíncrona...")
+
+                    def _exchange_worker():
+                        try:
+                            success = self.exchange_code_for_tokens(
+                                code, "https://people.zup.com.br/career/logbook"
+                            )
+                            if success:
+                                self.login_completed = True
+                                self.close_login_window()
+                        finally:
+                            self.is_exchanging_code = False
+
+                    threading.Thread(target=_exchange_worker, daemon=True).start()
+                    return True
             except Exception as e:
                 print(f"[Auth] Erro ao processar URL de autenticação: {e}")
 
@@ -336,7 +353,7 @@ class AuthManager:
                     )
                     return True
             else:
-                print(f"[Auth] Erro na troca de code ({res.status_code}): {res.text}")
+                print(f"[Auth] Resposta na troca de code ({res.status_code}): {res.text}")
         except Exception as e:
             print(f"[Auth] Erro ao trocar code por token: {e}")
         return False
