@@ -1,5 +1,5 @@
-import { storage } from './store';
-import { authManager } from './auth-manager';
+import { storage } from './storage';
+import { authService } from './auth';
 import { LogbookDraft, SubmissionResult, CompetenceItem } from '../types';
 import { setDynamicCompetences, getAvailableCompetences } from '../data/competences';
 
@@ -12,7 +12,6 @@ function isLikelyTokenExpired(status: number, responseData: any, responseText: s
       (responseText || '')
     ).toLowerCase();
 
-    // Palavras-chave típicas de expiração / erro de autenticação em APIs e Gateways da Zup
     if (
       text.includes('token') ||
       text.includes('expired') ||
@@ -35,7 +34,6 @@ function isLikelyTokenExpired(status: number, responseData: any, responseText: s
       if (Date.now() >= expTime - 30000) return true;
     }
 
-    // Se temos refresh_token e status é 400, no People portal isso indica expiração
     if (session.refreshToken) {
       return true;
     }
@@ -46,7 +44,6 @@ function isLikelyTokenExpired(status: number, responseData: any, responseText: s
 export class ApiClient {
   public async fetchCompetences(forceRefresh = false): Promise<CompetenceItem[]> {
     const session = storage.getSession();
-    const settings = storage.getSettings();
 
     const cached = storage.getCachedCompetences();
     if (!forceRefresh && cached && cached.length > 0) {
@@ -62,29 +59,26 @@ export class ApiClient {
     const headers: Record<string, string> = {
       Accept: 'application/json, text/plain, */*',
       authorization: `Bearer ${session.token}`,
-      Origin: 'https://people.zup.com.br',
-      Referer: 'https://people.zup.com.br/',
-      'User-Agent':
-        settings.capturedHeaders?.['user-agent'] ||
-        'Mozilla/5.0 (X11; Linux x86_64; rv:156.0) Gecko/20100101 Firefox/156.0',
     };
 
     try {
-      console.log(`Consultando competências dinâmicas no People Zup (${endpoint})...`);
+      console.log(`Bookmarklet: consultando competências dinâmicas (${endpoint})...`);
       let response = await fetch(endpoint, {
         method: 'GET',
         headers,
+        credentials: 'omit',
       });
 
       if (response.status === 401 || response.status === 400) {
-        console.warn(`${response.status} ao buscar competências. Tentando renovar token via refresh_token...`);
-        const renewed = (await authManager.refreshAccessToken()) || (await authManager.refreshTokenSilently());
+        console.warn(`${response.status} ao buscar competências. Tentando renovar token...`);
+        const renewed = await authService.refreshAccessToken();
         if (renewed) {
           const freshSession = storage.getSession();
           headers.authorization = `Bearer ${freshSession.token}`;
           response = await fetch(endpoint, {
             method: 'GET',
             headers,
+            credentials: 'omit',
           });
         }
       }
@@ -92,20 +86,19 @@ export class ApiClient {
       if (response.ok) {
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
-          console.log(`Carregadas ${data.length} competências dinâmicas do People Zup com sucesso!`);
+          console.log(`Carregadas ${data.length} competências dinâmicas com sucesso!`);
           storage.setCachedCompetences(data);
           setDynamicCompetences(data);
           return data;
         }
-      } else {
-        console.warn(`Resposta não esperada da API de competências (${response.status})`);
       }
     } catch (err: any) {
-      console.error('Erro ao consultar competências dinâmicas:', err.message);
+      console.error('Erro ao consultar competências dinâmicas no Bookmarklet:', err.message);
     }
 
     return cached && cached.length > 0 ? cached : getAvailableCompetences();
   }
+
   public async submitLogbook(draft: LogbookDraft, isRetry = false): Promise<SubmissionResult> {
     const session = storage.getSession();
     const settings = storage.getSettings();
@@ -113,14 +106,13 @@ export class ApiClient {
     if (!session.token) {
       return {
         success: false,
-        message: 'Token de autenticação não encontrado. Por favor, conecte-se ao People Zup.',
+        message: 'Token de autenticação não encontrado. Insira seu token ou conecte-se ao People Zup.',
       };
     }
 
-    // Se o token já expirou de acordo com o JWT exp, tentar renovação via refresh_token antes de enviar
     if (session.isExpired && !isRetry) {
-      console.log('Token JWT expirado detectado antes do envio. Renovando via refresh_token...');
-      const renewed = (await authManager.refreshAccessToken()) || (await authManager.refreshTokenSilently());
+      console.log('Token expirado antes do envio. Renovando...');
+      const renewed = await authService.refreshAccessToken();
       if (renewed) {
         return this.submitLogbook(draft, true);
       }
@@ -128,14 +120,12 @@ export class ApiClient {
 
     const targetUrl = settings.logbookEndpoint || 'https://apiznt.zenity.zup.com.br/dune/v1/entry';
 
-    // Obtém o texto completo do diário (prioriza draft.content, com fallback para blocos) sem limitação artificial de caracteres
     const plainContent =
       (draft.content && draft.content.trim()) ||
       (draft.blocks && draft.blocks.length > 0
         ? draft.blocks.map((b) => `${b.title}\n${b.description}`).join('\n\n')
         : '');
 
-    // Converte o texto linha por linha para a estrutura Slate AST (formattedContent), exatamente como o portal do People Zup faz
     const formattedContent = plainContent.split('\n').map((line) => ({
       type: 'paragraph',
       children: [{ text: line }],
@@ -143,9 +133,6 @@ export class ApiClient {
 
     const isPerformance = draft.isPerformanceReview !== false && draft.type !== 'livre';
 
-    // Estrutura exata do payload conforme People Dune:
-    // Para Registro Livre: content, formattedContent, title, isPerformanceReview: false
-    // Para Performance: title, formattedContent, isPerformanceReview: true, competences, metadata, content
     const payload = isPerformance
       ? {
           title: draft.title || '',
@@ -168,20 +155,15 @@ export class ApiClient {
       'Content-Type': 'application/json',
       Accept: '*/*',
       authorization: `Bearer ${session.token}`,
-      Origin: 'https://people.zup.com.br',
-      Referer: 'https://people.zup.com.br/',
-      'User-Agent':
-        settings.capturedHeaders?.['user-agent'] ||
-        'Mozilla/5.0 (X11; Linux x86_64; rv:156.0) Gecko/20100101 Firefox/156.0',
     };
 
-    console.log(`Disparando envio para: ${targetUrl}`);
-    console.log('Payload:', JSON.stringify(payload, null, 2));
+    console.log(`Bookmarklet disparando envio para: ${targetUrl}`);
 
     try {
       const response = await fetch(targetUrl, {
         method: 'POST',
         headers,
+        credentials: 'omit',
         body: JSON.stringify(payload),
       });
 
@@ -202,15 +184,9 @@ export class ApiClient {
         };
       }
 
-      // Se retornou 400 ou 401 por expiração de token e ainda não tentamos retry:
       if (!isRetry && isLikelyTokenExpired(response.status, responseData, responseText)) {
-        console.warn(`API retornou ${response.status} indicando token expirado. Renovando via refresh_token...`);
-        let renewed = await authManager.refreshAccessToken();
-        if (!renewed) {
-          console.warn('Renovação direta via refresh_token falhou, tentando fallback silencioso...');
-          renewed = await authManager.refreshTokenSilently();
-        }
-
+        console.warn(`API retornou ${response.status} indicando token expirado. Renovando no Bookmarklet...`);
+        const renewed = await authService.refreshAccessToken();
         if (renewed) {
           console.log('Token renovado com sucesso. Reenviando requisição do diário...');
           const retryResult = await this.submitLogbook(draft, true);
@@ -218,11 +194,9 @@ export class ApiClient {
           return retryResult;
         }
 
-        // Se ambas as renovações falharem, solicitar reautenticação
-        authManager.openLogin();
         return {
           success: false,
-          message: 'Sua sessão expirou no People Zup. Abrimos a janela de login para você revalidar seu 2FA.',
+          message: 'Sua sessão expirou no People Zup. Atualize a página do People ou renove seu token nas configurações.',
           responseStatus: response.status,
           data: responseData,
         };
@@ -244,11 +218,4 @@ export class ApiClient {
   }
 }
 
-export let apiClient: ApiClient;
-
-export function initApiClient() {
-  if (!apiClient) {
-    apiClient = new ApiClient();
-  }
-  return apiClient;
-}
+export const apiClient = new ApiClient();

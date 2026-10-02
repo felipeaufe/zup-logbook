@@ -1,0 +1,242 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const distDir = path.resolve(__dirname, '../dist');
+const bundlePath = path.join(distDir, 'zup-logbook.bookmarklet.js');
+
+if (!fs.existsSync(bundlePath)) {
+  console.error('Arquivo dist/zup-logbook.bookmarklet.js não encontrado. Execute npm run build primeiro.');
+  process.exit(1);
+}
+
+// Bookmarklet Loader com auto-redirecionamento para o People e toggle instantâneo
+function generateLoader(url) {
+  return `javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){h.style.display=h.style.display==='none'?'block':'none';return;}const s=document.createElement('script');s.src='${url}?t='+Date.now();document.body.appendChild(s);})();`;
+}
+
+const defaultUrl = 'http://localhost:8080/zup-logbook.bookmarklet.js';
+const defaultLoader = generateLoader(defaultUrl);
+
+// Salva o loader padrão em dist/bookmarklet.txt (apenas 120 caracteres!)
+fs.writeFileSync(path.join(distDir, 'bookmarklet.txt'), defaultLoader, 'utf-8');
+
+// Cria uma página HTML moderna para instalação, configuração e testes
+const htmlContent = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Instalação do Zup Logbook Bookmarklet</title>
+  <style>
+    body {
+      background: #0D0E12;
+      color: #E2E8F0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .card {
+      background: #141620;
+      border: 1px solid #262A3B;
+      border-radius: 16px;
+      max-width: 680px;
+      width: 100%;
+      padding: 32px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 24px;
+      color: #FFF;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    p {
+      color: #94A3B8;
+      line-height: 1.6;
+      font-size: 15px;
+    }
+    .url-config {
+      background: #0F111A;
+      border: 1px solid #1E2232;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin: 20px 0;
+    }
+    .url-config label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #CBD5E1;
+      margin-bottom: 6px;
+    }
+    .url-config input {
+      width: 100%;
+      background: #1A1D2B;
+      border: 1px solid #2D3247;
+      border-radius: 8px;
+      color: #FFF;
+      font-family: monospace;
+      font-size: 14px;
+      padding: 10px 12px;
+      box-sizing: border-box;
+      outline: none;
+    }
+    .url-config input:focus {
+      border-color: #7C3AED;
+    }
+    .btn-bookmarklet {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(135deg, #7C3AED, #6366F1);
+      color: white;
+      text-decoration: none;
+      padding: 14px 28px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 16px;
+      margin: 15px 0;
+      box-shadow: 0 10px 25px rgba(124, 58, 237, 0.3);
+      cursor: grab;
+      border: 2px dashed rgba(255,255,255,0.3);
+      user-select: none;
+      transition: transform 0.15s;
+    }
+    .btn-bookmarklet:hover {
+      background: linear-gradient(135deg, #6D28D9, #4F46E5);
+      transform: scale(1.02);
+    }
+    .steps {
+      background: #0F111A;
+      border: 1px solid #1E2232;
+      border-radius: 12px;
+      padding: 18px 24px;
+      margin: 20px 0;
+    }
+    .steps ol {
+      margin: 0;
+      padding-left: 20px;
+    }
+    .steps li {
+      margin-bottom: 10px;
+      color: #CBD5E1;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .btn-copy {
+      background: #1E2232;
+      border: 1px solid #33384D;
+      color: #E2E8F0;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .btn-copy:hover {
+      background: #282E42;
+      color: #FFF;
+    }
+    textarea {
+      width: 100%;
+      height: 52px;
+      background: #0B0D13;
+      border: 1px solid #1E2232;
+      border-radius: 8px;
+      color: #A78BFA;
+      font-family: monospace;
+      font-size: 13px;
+      padding: 10px;
+      box-sizing: border-box;
+      margin-top: 10px;
+      resize: none;
+      word-break: break-all;
+    }
+    code {
+      background: #1E2232;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #A78BFA;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🚀 Zup Logbook (Bookmarklet Loader)</h1>
+    <p>
+      O Zup Logbook é carregado diretamente no portal <strong>People Zup</strong> através de um <strong>Loader</strong> ultra-leve (~120 caracteres), 100% compatível com o limite de tamanho da barra de favoritos de qualquer navegador!
+    </p>
+
+    <!-- Configuração da URL de onde o script será servido -->
+    <div class="url-config">
+      <label for="scriptUrl">URL de Hospedagem do script (Local ou Servidor Corporativo):</label>
+      <input type="text" id="scriptUrl" value="${defaultUrl}" oninput="updateBookmarklet()" />
+      <span style="font-size: 12px; color: #64748B; margin-top: 4px; display: block;">
+        Dica: Para rodar localmente sem instalar nada, execute <code>python3 -m http.server 8080 --directory dist</code> ou <code>npm run serve</code>.
+      </span>
+    </div>
+
+    <!-- Botão de arrastar -->
+    <div style="text-align: center;">
+      <a id="bookmarkletLink" href="${defaultLoader}" class="btn-bookmarklet" title="Arraste para seus Favoritos">
+        ⭐ Zup Logbook
+      </a>
+      <p style="font-size: 13px; color: #64748B; margin: 0;">
+        (Pressione <code>Ctrl + Shift + B</code> e arraste o botão acima para os Favoritos)
+      </p>
+    </div>
+
+    <div class="steps">
+      <h3 style="margin-top: 0; font-size: 15px; color: #F1F5F9;">Como usar no People Zup:</h3>
+      <ol>
+        <li>Certifique-se de que a <strong>Barra de Favoritos</strong> está visível (<code>Ctrl + Shift + B</code>).</li>
+        <li>Arraste o botão roxo <strong>"⭐ Zup Logbook"</strong> para a sua barra de favoritos.</li>
+        <li>Se estiver rodando o servidor local, inicie-o com <code>npm run serve</code> (ou <code>./serve.sh</code> / <code>serve.bat</code>).</li>
+        <li>Acesse o portal do <strong>People Zup</strong> (<a href="https://people.zup.com.br/career/logbook" target="_blank" style="color: #A78BFA;">people.zup.com.br/career/logbook</a>) e faça seu login habitual com 2FA.</li>
+        <li>Clique no favorito <strong>"Zup Logbook"</strong> na barra superior. A gaveta lateral flutuante se abrirá imediatamente!</li>
+      </ol>
+    </div>
+
+    <div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 13px; color: #94A3B8;">Código do Bookmarklet Loader (apenas 120 caracteres):</span>
+        <button class="btn-copy" onclick="copyCode()">Copiar Código</button>
+      </div>
+      <textarea id="code" readonly>${defaultLoader}</textarea>
+    </div>
+  </div>
+
+  <script>
+    function updateBookmarklet() {
+      const url = document.getElementById('scriptUrl').value.trim() || '${defaultUrl}';
+      const loaderCode = "javascript:(function(){if(!location.hostname.includes('people.zup.com.br')){location.href='https://people.zup.com.br/career/logbook';return;}const h=document.getElementById('zup-logbook-host');if(h){h.style.display=h.style.display==='none'?'block':'none';return;}const s=document.createElement('script');s.src='" + url + "?t='+Date.now();document.body.appendChild(s);})();";
+      document.getElementById('bookmarkletLink').href = loaderCode;
+      document.getElementById('code').value = loaderCode;
+    }
+
+    function copyCode() {
+      const textarea = document.getElementById('code');
+      textarea.select();
+      navigator.clipboard.writeText(textarea.value);
+      alert('Código do Bookmarklet Loader copiado! Cole na URL do seu favorito.');
+    }
+  </script>
+</body>
+</html>`;
+
+fs.writeFileSync(path.join(distDir, 'index.html'), htmlContent, 'utf-8');
+
+console.log('✅ Bookmarklet Loader gerado com sucesso em dist/bookmarklet.txt e dist/index.html!');

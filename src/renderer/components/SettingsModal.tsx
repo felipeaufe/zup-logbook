@@ -7,6 +7,8 @@ import {
   DEFAULT_NON_LEADERSHIP_TEMPLATE,
 } from '../../data/templates';
 
+import { authService } from '../../services/auth';
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -57,12 +59,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleManualRefresh = async () => {
-    if (!window.electronAPI) return;
     setIsRefreshingToken(true);
     setRefreshFeedback(null);
     try {
-      const res = await window.electronAPI.refreshToken();
-      if (res.success) {
+      const success = await authService.refreshAccessToken();
+      if (success) {
         setRefreshFeedback({ success: true, message: 'Token renovado com sucesso via Keycloak!' });
       } else {
         setRefreshFeedback({

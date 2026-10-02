@@ -10,6 +10,7 @@ interface HeaderProps {
   onLogout: () => void;
   onOpenSettings: () => void;
   onNewEntry?: () => void;
+  onClose?: () => void;
   hasMessages?: boolean;
 }
 
@@ -21,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
   onOpenSettings,
   onNewEntry,
+  onClose,
   hasMessages = false,
 }) => {
   const isAuthenticated = Boolean(session.token);
@@ -133,6 +135,17 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <Settings className="w-4 h-4" />
         </button>
+
+        {/* Close/Hide Bookmarklet button */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            title="Fechar / Ocultar Zup Logbook"
+            className="p-2 rounded-lg border border-[#2A2D3A] text-gray-400 hover:text-white hover:bg-rose-500/20 hover:border-rose-500/40 transition-colors"
+          >
+            <X className="w-4 h-4 text-gray-300 hover:text-white" />
+          </button>
+        )}
       </div>
     </header>
   );

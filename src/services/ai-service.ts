@@ -1,4 +1,4 @@
-import { storage } from './store';
+import { storage } from './storage';
 import { LogbookDraft, ChatMessage, FormattedBlock, CompetenceItem, AppSettings } from '../types';
 import { getAvailableCompetences } from '../data/competences';
 import {
@@ -30,7 +30,9 @@ export class AiService {
         ) {
           return await this.callStackSpotAi(userInput, history, settings, lastDraft);
         } else {
-          throw new Error('Credenciais da StackSpot AI não configuradas. Preencha o Token de Acesso (PAT) ou Client ID/Secret nas Configurações.');
+          throw new Error(
+            'Credenciais da StackSpot AI não configuradas. Preencha o Token de Acesso (PAT) ou Client ID/Secret nas Configurações.'
+          );
         }
       } else if (provider === 'gemini') {
         if (settings.aiApiKey) {
@@ -72,12 +74,13 @@ export class AiService {
     const clientSecret = (settings.stackspotClientSecret || '').trim();
 
     if (!clientId || !clientSecret) {
-      throw new Error('Credenciais da StackSpot AI não configuradas (Client ID / Client Secret ou Personal Access Token).');
+      throw new Error(
+        'Credenciais da StackSpot AI não configuradas (Client ID / Client Secret ou Personal Access Token).'
+      );
     }
 
     console.log(`Solicitando token OAuth2 da StackSpot para realm: ${realm}`);
 
-    // Tentativa com formato padrão da documentação StackSpot (form-urlencoded)
     const bodyParams = new URLSearchParams();
     bodyParams.append('grant_type', 'client_credentials');
     bodyParams.append('client_id', clientId);
@@ -182,10 +185,6 @@ ${contextPrompt}
 `;
   }
 
-
-  /**
-   * Executa chamada à API da StackSpot AI
-   */
   private async callStackSpotAi(
     userInput: string,
     history: ChatMessage[],
@@ -195,7 +194,6 @@ ${contextPrompt}
     const accessToken = await this.getStackSpotAccessToken(settings);
     const systemPrompt = this.buildFullPrompt(settings, userInput, previousDraft);
 
-    // Se houver um Quick Command configurado, disparar via Quick Command
     if (settings.stackspotSlug) {
       const qcUrl = `https://genai-code-buddy-api.stackspot.com/v1/quick-commands/create-execution/${settings.stackspotSlug}`;
       const qcRes = await fetch(qcUrl, {
@@ -217,7 +215,6 @@ ${contextPrompt}
       return this.parseAiResult(qcData.result || JSON.stringify(qcData), userInput, previousDraft);
     }
 
-    // Caso contrário, chamar endpoint de chat padrão da StackSpot
     const chatUrl = 'https://genai-code-buddy-api.stackspot.com/v1/chat';
 
     const chatMessages: any[] = [{ role: 'system', content: systemPrompt }];
@@ -270,11 +267,11 @@ ${contextPrompt}
 
       const parsed = JSON.parse(jsonStr);
 
-      const blocks: FormattedBlock[] = Array.isArray(parsed.blocks) && parsed.blocks.length > 0
-        ? parsed.blocks
-        : previousDraft?.blocks || [];
+      const blocks: FormattedBlock[] =
+        Array.isArray(parsed.blocks) && parsed.blocks.length > 0
+          ? parsed.blocks
+          : previousDraft?.blocks || [];
 
-      // Seleção de competências EXCLUSIVAMENTE feita pela LLM
       const available = getAvailableCompetences();
       const selectedCompetences: CompetenceItem[] = [];
 
@@ -298,7 +295,6 @@ ${contextPrompt}
         }
       }
 
-      // Se for um ajuste e a LLM não informou lista de competências, mantém as anteriores do draft
       if (
         selectedCompetences.length === 0 &&
         previousDraft &&
@@ -341,7 +337,9 @@ ${contextPrompt}
       };
     } catch (err: any) {
       console.error('Falha no parse do retorno da LLM:', err, 'Texto bruto retornado:', rawText);
-      throw new Error(`A resposta da IA não pôde ser interpretada ou veio em formato inesperado: ${err.message}`);
+      throw new Error(
+        `A resposta da IA não pôde ser interpretada ou veio em formato inesperado: ${err.message}`
+      );
     }
   }
 
@@ -397,11 +395,4 @@ ${contextPrompt}
   }
 }
 
-export let aiService: AiService;
-
-export function initAiService() {
-  if (!aiService) {
-    aiService = new AiService();
-  }
-  return aiService;
-}
+export const aiService = new AiService();

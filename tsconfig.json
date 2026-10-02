@@ -16,5 +16,12 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src"]
+  "include": [
+    "src/bookmarklet",
+    "src/renderer",
+    "src/services",
+    "src/data",
+    "src/types",
+    "src/vite-env.d.ts"
+  ]
 }

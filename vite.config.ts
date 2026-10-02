@@ -1,30 +1,29 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import electron from 'vite-plugin-electron/simple';
 import path from 'node:path';
 
 export default defineConfig({
-  plugins: [
-    react(),
-    electron({
-      main: {
-        entry: 'src/main/index.ts',
+  plugins: [react()],
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
+  },
+  build: {
+    target: 'esnext',
+    outDir: 'dist',
+    minify: 'esbuild',
+    lib: {
+      entry: path.resolve(__dirname, 'src/bookmarklet/mount.tsx'),
+      name: 'ZupLogbook',
+      formats: ['iife'],
+      fileName: () => 'zup-logbook.bookmarklet.js',
+    },
+    rollupOptions: {
+      output: {
+        extend: true,
+        inlineDynamicImports: true,
       },
-      preload: {
-        input: 'src/preload/index.ts',
-        vite: {
-          build: {
-            rollupOptions: {
-              output: {
-                format: 'cjs',
-                entryFileNames: 'index.cjs',
-              },
-            },
-          },
-        },
-      },
-    }),
-  ],
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

@@ -5,14 +5,16 @@ import { Header } from './components/Header';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { ChatInterface } from './components/ChatInterface';
 import { SettingsModal } from './components/SettingsModal';
-import { Toast, ToastProps } from './components/Toast';
+import { Toast } from './components/Toast';
 import {
   DEFAULT_INSTRUCTIONS,
   DEFAULT_LEADERSHIP_TEMPLATE,
   DEFAULT_NON_LEADERSHIP_TEMPLATE,
 } from '../data/templates';
-
-
+import { storage } from '../services/storage';
+import { authService } from '../services/auth';
+import { apiClient } from '../services/api-client';
+import { aiService } from '../services/ai-service';
 
 function cleanErrorMessage(err: any): string {
   const msg = err?.message || String(err || '');
@@ -22,7 +24,6 @@ function cleanErrorMessage(err: any): string {
     .trim();
 }
 
-// Auxiliar para Registro Manual / Livre (sem título, sem competências, texto bruto)
 function createLivreDraft(userInput: string): LogbookDraft {
   const hoursMatch = userInput.match(/(\d+)\s*(?:h|horas|hrs|hora)/i);
   const hours = hoursMatch ? parseInt(hoursMatch[1], 10) : 8;
@@ -40,7 +41,6 @@ function createLivreDraft(userInput: string): LogbookDraft {
   };
 }
 
-// Auxiliar para formulário manual de Registro de Performance
 function createPerformanceDraft(userInput: string, existingDraft?: LogbookDraft): LogbookDraft {
   const hoursMatch = userInput.match(/(\d+)\s*(?:h|horas|hrs|hora)/i);
   const hours = existingDraft?.hours || (hoursMatch ? parseInt(hoursMatch[1], 10) : 8);
@@ -58,30 +58,14 @@ function createPerformanceDraft(userInput: string, existingDraft?: LogbookDraft)
   };
 }
 
-export const App: React.FC = () => {
+interface AppProps {
+  onClose?: () => void;
+}
+
+export const App: React.FC<AppProps> = ({ onClose }) => {
   const [currentScreen, setCurrentScreen] = useState<'welcome' | 'chat'>('welcome');
-  const [session, setSession] = useState<AuthSession>({
-    token: null,
-    cookies: {},
-    user: null,
-    lastLogin: null,
-    expiresAt: null,
-  });
-  const [settings, setSettings] = useState<AppSettings>({
-    aiProvider: 'stackspot',
-    stackspotClientId: '',
-    stackspotClientSecret: '',
-    stackspotRealm: 'zup',
-    stackspotSlug: '',
-    aiApiKey: '',
-    aiModel: 'gemini-2.5-flash',
-    peopleBaseUrl: 'https://people.zup.com.br',
-    logbookEndpoint: 'https://apiznt.zenity.zup.com.br/dune/v1/entry',
-    customInstructions: DEFAULT_INSTRUCTIONS,
-    leadershipTemplate: DEFAULT_LEADERSHIP_TEMPLATE,
-    nonLeadershipTemplate: DEFAULT_NON_LEADERSHIP_TEMPLATE,
-    saveSession: true,
-  });
+  const [session, setSession] = useState<AuthSession>(storage.getSession());
+  const [settings, setSettings] = useState<AppSettings>(storage.getSettings());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -99,146 +83,109 @@ export const App: React.FC = () => {
 
   // Carregar competências dinâmicas do People Zup e sincronizar
   useEffect(() => {
-    if (window.electronAPI) {
-      window.electronAPI
-        .getCompetences(Boolean(session.token))
-        .then((list) => {
-          if (list && list.length > 0) {
-            setCompetences(list);
-          }
-        })
-        .catch(console.error);
-
-      const unsubscribe = window.electronAPI.onCompetencesUpdated((list) => {
+    apiClient
+      .fetchCompetences(Boolean(session.token))
+      .then((list) => {
         if (list && list.length > 0) {
           setCompetences(list);
         }
-      });
-
-      return () => {
-        unsubscribe();
-      };
-    }
+      })
+      .catch(console.error);
   }, [session.token]);
 
-  // Carregar sessão e configurações iniciais ao abrir o app
+  // Carregar sessão e configurações iniciais ao montar
   useEffect(() => {
-    const initApp = async () => {
-      try {
-        if (window.electronAPI) {
-          const loadedSession = await window.electronAPI.getSession();
-          const loadedSettings = await window.electronAPI.getSettings();
+    const loadedSettings = storage.getSettings();
+    setSettings({
+      ...loadedSettings,
+      customInstructions: loadedSettings.customInstructions || DEFAULT_INSTRUCTIONS,
+      leadershipTemplate: loadedSettings.leadershipTemplate || DEFAULT_LEADERSHIP_TEMPLATE,
+      nonLeadershipTemplate: loadedSettings.nonLeadershipTemplate || DEFAULT_NON_LEADERSHIP_TEMPLATE,
+    });
 
-          setSession(loadedSession);
-          if (loadedSettings) {
-            setSettings({
-              ...loadedSettings,
-              customInstructions: loadedSettings.customInstructions || DEFAULT_INSTRUCTIONS,
-              leadershipTemplate: loadedSettings.leadershipTemplate || DEFAULT_LEADERSHIP_TEMPLATE,
-              nonLeadershipTemplate: loadedSettings.nonLeadershipTemplate || DEFAULT_NON_LEADERSHIP_TEMPLATE,
-            });
-          }
+    // Detectar sessão já existente no portal People Zup
+    const detected = authService.detectSessionFromPage();
+    setSession(detected);
 
-          // Se já possuir token ativo, vai direto para o chat
-          if (loadedSession.token) {
-            setCurrentScreen('chat');
-          }
+    if (detected.token) {
+      setCurrentScreen('chat');
+    }
 
-          // Listener para atualizações de login
-          window.electronAPI.onAuthStatusChanged((newSession) => {
-            setSession(newSession);
-            setIsLoggingIn(false);
-            if (newSession.token) {
-              showToast('success', `Conectado como ${newSession.user?.name || 'Zupper'}!`);
-              setCurrentScreen('chat');
-            }
-          });
-        }
-      } catch (err: any) {
-        showToast('error', `Erro ao inicializar app: ${err.message}`);
+    const unsubscribe = authService.onAuthStatusChanged((newSession) => {
+      setSession(newSession);
+      setIsLoggingIn(false);
+      if (newSession.token) {
+        showToast('success', `Conectado como ${newSession.user?.name || 'Zupper'}!`);
+        setCurrentScreen('chat');
       }
-    };
+    });
 
-    initApp();
+    return () => unsubscribe();
   }, []);
 
-  // Iniciar fluxo de autenticação People Zup
   const handleStartLogin = async () => {
     setIsLoggingIn(true);
     try {
-      if (window.electronAPI) {
-        const started = await window.electronAPI.startLogin();
-        if (!started) {
-          showToast('error', 'Falha ao iniciar tela de autenticação');
-          setIsLoggingIn(false);
-        }
-      } else {
-        // Fallback para dev em navegador web
-        showToast('info', 'Ambiente web de teste. Abrindo simulação de login.');
-        setTimeout(() => {
-          setIsLoggingIn(false);
-          setSession({
-            token: 'mock-jwt-token',
-            cookies: {},
-            user: { name: 'Zupper Dev', email: 'zupper@zup.com.br' },
-            lastLogin: new Date().toISOString(),
-            expiresAt: new Date(Date.now() + 3600000).toISOString(),
-          });
-          setCurrentScreen('chat');
-        }, 1500);
+      // 1. Tenta varredura profunda no storage e cookies
+      let detected = authService.detectSessionFromPage(true);
+      if (detected.token) {
+        setSession(detected);
+        showToast('success', `Sessão ativa detectada: ${detected.user?.name || 'Zupper'}!`);
+        setCurrentScreen('chat');
+        setIsLoggingIn(false);
+        return;
       }
+
+      // 2. Tenta obter token silenciosamente via Keycloak SSO
+      showToast('info', 'Verificando sessão ativa com Keycloak...');
+      const ssoSuccess = await authService.triggerSilentSsoCheck();
+      detected = storage.getSession();
+
+      if (ssoSuccess && detected.token) {
+        setSession(detected);
+        showToast('success', `Conectado via Keycloak: ${detected.user?.name || 'Zupper'}!`);
+        setCurrentScreen('chat');
+        setIsLoggingIn(false);
+        return;
+      }
+
+      showToast('info', 'Não foi possível ler o token automaticamente. Você pode inseri-lo nas configurações.');
+      setIsSettingsOpen(true);
     } catch (err: any) {
-      showToast('error', `Erro ao abrir autenticação: ${err.message}`);
+      showToast('error', `Erro na detecção de autenticação: ${err.message}`);
+    } finally {
       setIsLoggingIn(false);
     }
   };
 
-  const handleCancelLogin = async () => {
-    if (window.electronAPI) {
-      await window.electronAPI.cancelLogin();
-    }
+  const handleCancelLogin = () => {
     setIsLoggingIn(false);
   };
 
-  const handleLogout = async () => {
-    if (window.electronAPI) {
-      await window.electronAPI.logout();
-    }
-    setSession({
-      token: null,
-      cookies: {},
-      user: null,
-      lastLogin: null,
-      expiresAt: null,
-    });
+  const handleLogout = () => {
+    authService.logout();
+    setSession(storage.getSession());
     setMessages([]);
     setActiveMode(null);
     setCurrentScreen('welcome');
     showToast('info', 'Você foi desconectado com sucesso.');
   };
 
-  const handleSaveSettings = async (newSettings: Partial<AppSettings>) => {
-    if (window.electronAPI) {
-      const saved = await window.electronAPI.saveSettings(newSettings);
-      setSettings(saved);
-    } else {
-      setSettings((prev) => ({ ...prev, ...newSettings } as AppSettings));
-    }
+  const handleSaveSettings = (newSettings: Partial<AppSettings>) => {
+    const saved = storage.updateSettings(newSettings);
+    setSettings(saved);
     showToast('success', 'Configurações salvas com sucesso!');
   };
 
-  const handleSaveManualToken = async (token: string, refreshToken?: string) => {
-    if (window.electronAPI) {
-      const updatedSession = await window.electronAPI.setManualToken(token, refreshToken);
-      setSession(updatedSession);
-      if (token || refreshToken) {
-        showToast('success', 'Credenciais de autenticação salvas com sucesso!');
-        if (token) setCurrentScreen('chat');
-      }
+  const handleSaveManualToken = (token: string, refreshToken?: string) => {
+    const updatedSession = authService.setManualToken(token, refreshToken);
+    setSession(updatedSession);
+    if (token || refreshToken) {
+      showToast('success', 'Credenciais de autenticação salvas com sucesso!');
+      if (token) setCurrentScreen('chat');
     }
   };
 
-  // Seleção de modo inicial pelo empty state
   const handleSelectInitialMode = (mode: 'performance' | 'livre') => {
     setActiveMode(mode);
     const welcomeMsg: ChatMessage = {
@@ -253,7 +200,6 @@ export const App: React.FC = () => {
     setMessages([welcomeMsg]);
   };
 
-  // Escolha do tipo de registro quando o usuário digitou sem escolher previamente
   const handleSelectChoice = async (type: 'performance' | 'livre', rawInput: string) => {
     setActiveMode(type);
 
@@ -262,7 +208,7 @@ export const App: React.FC = () => {
       const assistantMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'assistant',
-        text: 'Preparei a amostra do seu Registro Livre com base no texto enviado. Você pode aprovar o envio ou refinar com IA a qualquer momento:',
+        text: '📝 Preparei o seu Registro Livre! Você pode aprovar e enviar diretamente ou clicar em "Refinar com IA" para aprimorar o texto:',
         timestamp: new Date().toLocaleTimeString(),
         draft: livreDraft,
         status: 'pending_approval',
@@ -271,31 +217,33 @@ export const App: React.FC = () => {
       return;
     }
 
-    // Se for 'performance', processa com IA
     setIsAiThinking(true);
     try {
-      if (window.electronAPI) {
-        const response = await window.electronAPI.processRelato(rawInput, messages);
-        const assistantMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          sender: 'assistant',
-          text: response.message,
-          timestamp: new Date().toLocaleTimeString(),
-          draft: response.draft
-            ? { ...response.draft, type: 'performance', isPerformanceReview: true }
-            : createPerformanceDraft(rawInput),
-          status: 'pending_approval',
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
-      }
+      const response = await aiService.processRelato(rawInput, messages);
+      const assistantMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        sender: 'assistant',
+        text: response.message,
+        timestamp: new Date().toLocaleTimeString(),
+        draft: response.draft
+          ? {
+              ...response.draft,
+              type: 'performance',
+              isPerformanceReview: true,
+            }
+          : undefined,
+        status: 'pending_approval',
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
       const cleanErr = cleanErrorMessage(err);
       showToast('error', `Falha ao processar com IA: ${cleanErr}`);
+
       const manualDraft = createPerformanceDraft(rawInput);
       const assistantMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'assistant',
-        text: `⚠️ Não foi possível estruturar o relato com IA (${cleanErr}).\n\nDisponibilizei o formulário de Registro de Performance abaixo com o seu texto para que você possa preencher o título, competências e concluir o registro manualmente:`,
+        text: `⚠️ Não foi possível processar via IA (${cleanErr}). Disponibilizei o formulário abaixo para preenchimento manual do diário de bordo:`,
         timestamp: new Date().toLocaleTimeString(),
         draft: manualDraft,
         status: 'pending_approval',
@@ -306,34 +254,29 @@ export const App: React.FC = () => {
     }
   };
 
-  // Refinar um Registro Livre com IA preservando estritamente o modo e tipo Livre
   const handleRefineWithAi = async (draft: LogbookDraft) => {
     setIsAiThinking(true);
-    // NÃO alternar activeMode: a escolha do usuário por Registro Livre DEVE ser sempre preservada.
-
     const promptText = draft.content || draft.rawInput;
     try {
-      if (window.electronAPI) {
-        const response = await window.electronAPI.processRelato(promptText, messages);
-        const isLivre = draft.type === 'livre';
-        const assistantMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          sender: 'assistant',
-          text: isLivre
-            ? '✨ Refinei o seu Registro Livre com IA! O texto foi estruturado e aprimorado mantendo o modo livre:'
-            : '✨ Refinei o seu relato com IA! Estruturei o texto, vinculei as competências do People Zup e preparei para a avaliação de performance:',
-          timestamp: new Date().toLocaleTimeString(),
-          draft: response.draft
-            ? {
-                ...response.draft,
-                type: draft.type || 'livre',
-                isPerformanceReview: draft.type === 'performance',
-              }
-            : undefined,
-          status: 'pending_approval',
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
-      }
+      const response = await aiService.processRelato(promptText, messages);
+      const isLivre = draft.type === 'livre';
+      const assistantMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        sender: 'assistant',
+        text: isLivre
+          ? '✨ Refinei o seu Registro Livre com IA! O texto foi estruturado e aprimorado mantendo o modo livre:'
+          : '✨ Refinei o seu relato com IA! Estruturei o texto, vinculei as competências do People Zup e preparei para a avaliação de performance:',
+        timestamp: new Date().toLocaleTimeString(),
+        draft: response.draft
+          ? {
+              ...response.draft,
+              type: draft.type || 'livre',
+              isPerformanceReview: draft.type === 'performance',
+            }
+          : undefined,
+        status: 'pending_approval',
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
       const cleanErr = cleanErrorMessage(err);
       showToast('error', `Falha ao refinar com IA: ${cleanErr}`);
@@ -349,7 +292,6 @@ export const App: React.FC = () => {
     }
   };
 
-  // Envio de mensagem pelo input principal
   const handleSendMessage = async (text: string) => {
     const userMsgId = Date.now().toString();
     const newUserMsg: ChatMessage = {
@@ -362,7 +304,6 @@ export const App: React.FC = () => {
     const updatedMessages = [...messages, newUserMsg];
     setMessages(updatedMessages);
 
-    // 1. Se já existe uma proposta em edição no chat, trata-se de um ajuste implícito contínuo
     const hasActiveDraft = messages.some((m) => !!m.draft && m.status !== 'submitted');
     if (hasActiveDraft) {
       const activeDraft = [...messages].reverse().find((m) => !!m.draft && m.status !== 'submitted')?.draft;
@@ -370,24 +311,22 @@ export const App: React.FC = () => {
 
       setIsAiThinking(true);
       try {
-        if (window.electronAPI) {
-          const response = await window.electronAPI.processRelato(text, updatedMessages);
-          const assistantMsg: ChatMessage = {
-            id: (Date.now() + 1).toString(),
-            sender: 'assistant',
-            text: response.message,
-            timestamp: new Date().toLocaleTimeString(),
-            draft: response.draft
-              ? {
-                  ...response.draft,
-                  type: isLivre ? 'livre' : 'performance',
-                  isPerformanceReview: !isLivre,
-                }
-              : undefined,
-            status: 'pending_approval',
-          };
-          setMessages([...updatedMessages, assistantMsg]);
-        }
+        const response = await aiService.processRelato(text, updatedMessages);
+        const assistantMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          sender: 'assistant',
+          text: response.message,
+          timestamp: new Date().toLocaleTimeString(),
+          draft: response.draft
+            ? {
+                ...response.draft,
+                type: isLivre ? 'livre' : 'performance',
+                isPerformanceReview: !isLivre,
+              }
+            : undefined,
+          status: 'pending_approval',
+        };
+        setMessages([...updatedMessages, assistantMsg]);
       } catch (err: any) {
         const cleanErr = cleanErrorMessage(err);
         showToast('error', `Falha ao processar ajuste: ${cleanErr}`);
@@ -404,13 +343,12 @@ export const App: React.FC = () => {
       return;
     }
 
-    // 2. Se o modo Livre estiver pré-selecionado:
     if (activeMode === 'livre') {
       const livreDraft = createLivreDraft(text);
       const assistantMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'assistant',
-        text: 'Preparei a amostra do seu Registro Livre. Você pode aprovar o envio diretamente ou refinar com IA:',
+        text: '📝 Preparei o seu Registro Livre! Você pode aprovar e enviar diretamente ou clicar em "Refinar com IA" para aprimorar o texto:',
         timestamp: new Date().toLocaleTimeString(),
         draft: livreDraft,
         status: 'pending_approval',
@@ -419,32 +357,34 @@ export const App: React.FC = () => {
       return;
     }
 
-    // 3. Se o modo Performance estiver pré-selecionado:
     if (activeMode === 'performance') {
       setIsAiThinking(true);
       try {
-        if (window.electronAPI) {
-          const response = await window.electronAPI.processRelato(text, updatedMessages);
-          const assistantMsg: ChatMessage = {
-            id: (Date.now() + 1).toString(),
-            sender: 'assistant',
-            text: response.message,
-            timestamp: new Date().toLocaleTimeString(),
-            draft: response.draft
-              ? { ...response.draft, type: 'performance', isPerformanceReview: true }
-              : createPerformanceDraft(text),
-            status: 'pending_approval',
-          };
-          setMessages([...updatedMessages, assistantMsg]);
-        }
+        const response = await aiService.processRelato(text, updatedMessages);
+        const assistantMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          sender: 'assistant',
+          text: response.message,
+          timestamp: new Date().toLocaleTimeString(),
+          draft: response.draft
+            ? {
+                ...response.draft,
+                type: 'performance',
+                isPerformanceReview: true,
+              }
+            : undefined,
+          status: 'pending_approval',
+        };
+        setMessages([...updatedMessages, assistantMsg]);
       } catch (err: any) {
         const cleanErr = cleanErrorMessage(err);
         showToast('error', `Falha ao processar com IA: ${cleanErr}`);
+
         const manualDraft = createPerformanceDraft(text);
         const assistantMsg: ChatMessage = {
           id: (Date.now() + 1).toString(),
           sender: 'assistant',
-          text: `⚠️ Não foi possível estruturar o relato com IA (${cleanErr}).\n\nDisponibilizei o formulário de Registro de Performance abaixo para que você possa preencher o título, competências e concluir o registro manualmente:`,
+          text: `⚠️ Não foi possível processar via IA (${cleanErr}). Disponibilizei o formulário abaixo para preenchimento manual do diário de bordo:`,
           timestamp: new Date().toLocaleTimeString(),
           draft: manualDraft,
           status: 'pending_approval',
@@ -456,8 +396,6 @@ export const App: React.FC = () => {
       return;
     }
 
-    // 4. Caso o usuário apenas digite algo sem escolher previamente:
-    // Exibe no chat uma mensagem pedindo para escolher uma das opções (com 2 botões no chat)
     const choiceMsg: ChatMessage = {
       id: (Date.now() + 1).toString(),
       sender: 'assistant',
@@ -480,31 +418,19 @@ export const App: React.FC = () => {
     setMessages([...updatedMessages, choiceMsg]);
   };
 
-  // Aprovação e Envio do Diário para a API Dune do People Zup
   const handleApproveDraft = async (draft: LogbookDraft) => {
     setIsSubmitting(true);
 
     try {
-      if (!window.electronAPI) {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        showToast('success', 'Diário de Bordo registrado com sucesso! (Modo Simulação)');
-        setMessages([]);
-        setActiveMode(null);
-        setIsSubmitting(false);
-        return;
-      }
-
-      const result = await window.electronAPI.submitLogbook(draft);
+      const result = await apiClient.submitLogbook(draft);
 
       if (result.success) {
         showToast('success', result.message || 'Diário de Bordo enviado com sucesso!');
 
-        // Atualizar status do card para enviado
         setMessages((prev) =>
           prev.map((m) => (m.draft ? { ...m, status: 'submitted' as const } : m))
         );
 
-        // Limpar tela após 1.5s para preparar novo registro
         setTimeout(() => {
           setMessages([]);
           setActiveMode(null);
@@ -521,7 +447,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0D0E12] text-gray-100 overflow-hidden font-sans">
+    <div className="h-full w-full flex flex-col bg-[#0D0E12] text-gray-100 overflow-hidden font-sans">
       {/* Top Header */}
       <Header
         session={session}
@@ -534,6 +460,7 @@ export const App: React.FC = () => {
           setMessages([]);
           setActiveMode(null);
         }}
+        onClose={onClose}
         hasMessages={currentScreen === 'chat' && messages.length > 0}
       />
 
@@ -549,17 +476,17 @@ export const App: React.FC = () => {
         ) : (
           <ChatInterface
             messages={messages}
+            isAiThinking={isAiThinking}
+            isSubmitting={isSubmitting}
             onSendMessage={handleSendMessage}
             onApproveDraft={handleApproveDraft}
+            onRefineWithAi={handleRefineWithAi}
             onSelectChoice={handleSelectChoice}
             onSelectInitialMode={handleSelectInitialMode}
-            onRefineWithAi={handleRefineWithAi}
             onResetChat={() => {
               setMessages([]);
               setActiveMode(null);
             }}
-            isAiThinking={isAiThinking}
-            isSubmitting={isSubmitting}
             availableCompetences={competences}
           />
         )}
