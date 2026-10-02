@@ -56,34 +56,111 @@ function findCompetence(name: string) {
   return found || { id: 0, name: name.trim() };
 }
 
-function parseLogbookText(raw: string) {
-  let clean = raw.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '').trim();
+function parseInput(raw: string) {
+  const clean = raw.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '').trim();
 
-  // 1. Extrai Competências
-  const compMatch = clean.match(/compet[eê]ncias:\s*([\s\S]*)$/i);
+  // 1. Verifica se é Markdown padrão com seções ##
+  const hasMarkdownHeaders = /^##+\s+/m.test(clean);
+
+  if (hasMarkdownHeaders) {
+    let title = '';
+    const titleMatch = clean.match(/^#\s+(.+)$/m) || clean.match(/^t[ií]tulo:\s*(.+)$/mi);
+    if (titleMatch) {
+      title = titleMatch[1].trim();
+    } else {
+      title = clean.split(/\r?\n/)[0]?.replace(/^[#\s*_-]+/, '').trim() || '';
+    }
+
+    const sectionRegex = /^##+\s+(.+)$/gm;
+    let match: RegExpExecArray | null;
+    const headerPositions: { header: string; index: number; end: number }[] = [];
+
+    while ((match = sectionRegex.exec(clean)) !== null) {
+      headerPositions.push({ header: match[1].trim(), index: match.index, end: match.index + match[0].length });
+    }
+
+    const competences: any[] = [];
+    const formattedContent: any[] = [];
+    const plainBlocks: string[] = [];
+
+    for (let i = 0; i < headerPositions.length; i++) {
+      const cur = headerPositions[i];
+      const nextStart = i + 1 < headerPositions.length ? headerPositions[i + 1].index : clean.length;
+      const body = clean.slice(cur.end, nextStart).trim();
+
+      if (/compet[eê]ncias/i.test(cur.header)) {
+        const items = body.split(/\r?\n/).map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean);
+        for (const item of items) {
+          const comp = findCompetence(item);
+          if (comp) competences.push(comp);
+        }
+        continue;
+      }
+
+      let headerText = cur.header;
+      if (!headerText.endsWith(':')) headerText += ':';
+
+      formattedContent.push({
+        type: 'paragraph',
+        children: [{ text: headerText, bold: true }],
+      });
+
+      if (body) {
+        formattedContent.push({
+          type: 'paragraph',
+          children: [{ text: body }],
+        });
+        plainBlocks.push(`${headerText}\n${body}`);
+      } else {
+        plainBlocks.push(headerText);
+      }
+
+      formattedContent.push({
+        type: 'paragraph',
+        children: [{ text: '', bold: true }],
+      });
+    }
+
+    if (formattedContent.length > 0 && formattedContent[formattedContent.length - 1].children?.[0]?.text === '') {
+      formattedContent.pop();
+    }
+
+    return {
+      title,
+      formattedContent,
+      content: plainBlocks.join('\n\n'),
+      isPerformanceReview: true,
+      metadata: {
+        templateFor: /lideran[cç]a/i.test(clean) && !/n[aã]o\s*lideran[cç]a/i.test(clean) ? 'LEADERSHIP' : 'NON_LEADERSHIP',
+      },
+      competences,
+    };
+  }
+
+  // 2. Fallback para formato texto livre com regex flexível de tópicos
+  let text = clean;
+  const compMatch = text.match(/compet[eê]ncias:\s*([\s\S]*)$/i);
   let compText = '';
   if (compMatch) {
     compText = compMatch[1].trim();
-    clean = clean.slice(0, compMatch.index).trim();
+    text = text.slice(0, compMatch.index).trim();
   }
 
-  // 2. Extrai Título
   let title = '';
-  const descIdx = clean.search(/descri[cç][aã]o:/i);
+  const descIdx = text.search(/descri[cç][aã]o:/i);
   if (descIdx !== -1) {
-    title = clean.slice(0, descIdx).replace(/t[ií]tulo:\s*/i, '').trim();
-    clean = clean.slice(descIdx).replace(/descri[cç][aã]o:\s*/i, '').trim();
+    title = text.slice(0, descIdx).replace(/t[ií]tulo:\s*/i, '').trim();
+    text = text.slice(descIdx).replace(/descri[cç][aã]o:\s*/i, '').trim();
   } else {
-    title = clean.split(/\r?\n/)[0]?.replace(/t[ií]tulo:\s*/i, '').trim() || '';
+    title = text.split(/\r?\n/)[0]?.replace(/t[ií]tulo:\s*/i, '').trim() || '';
   }
   title = title.split(/\r?\n/)[0]?.trim() || '';
 
-  // 3. Localiza tópicos oficiais da Zup por expressão regular flexível
   const topicPattern = /(Resultado\/impacto(?:\s*\(momento atual\))?:?|Atitude e comportamento:?|Conhecimento T[eé]cnico da Pr[aá]tica:?|Aprendizado Tech:?|Expectativas de Entregas:?|Coment[aá]rios Adicionais(?: e Feedback Recebido)?:?)/gi;
 
   const matches: { index: number; header: string; end: number }[] = [];
   let m: RegExpExecArray | null;
-  while ((m = topicPattern.exec(clean)) !== null) {
+  while ((m = topicPattern.exec(text)) !== null) {
     matches.push({ index: m.index, header: m[0], end: m.index + m[0].length });
   }
 
@@ -92,11 +169,8 @@ function parseLogbookText(raw: string) {
 
   for (let i = 0; i < matches.length; i++) {
     const cur = matches[i];
-    const nextStart = i + 1 < matches.length ? matches[i + 1].index : clean.length;
-    let body = clean.slice(cur.end, nextStart).trim();
-
-    // Remove qualquer separador residual
-    body = body.replace(/^-+\s*|\s*-+$/g, '').trim();
+    const nextStart = i + 1 < matches.length ? matches[i + 1].index : text.length;
+    let body = text.slice(cur.end, nextStart).trim().replace(/^-+\s*|\s*-+$/g, '').trim();
 
     let standardHeader = cur.header.trim();
     if (!standardHeader.endsWith(':')) standardHeader += ':';
@@ -124,7 +198,6 @@ function parseLogbookText(raw: string) {
     }
   }
 
-  // 4. Mapeia competências
   const competences: any[] = [];
   if (compText) {
     const compLines = compText.split(/[\r\n,]+/).map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean);
@@ -140,7 +213,7 @@ function parseLogbookText(raw: string) {
     content: plainBlocks.join('\n\n'),
     isPerformanceReview: true,
     metadata: {
-      templateFor: /lideran[cç]a/i.test(raw) && !/n[aã]o\s*lideran[cç]a/i.test(raw) ? 'LEADERSHIP' : 'NON_LEADERSHIP',
+      templateFor: /lideran[cç]a/i.test(clean) && !/n[aã]o\s*lideran[cç]a/i.test(clean) ? 'LEADERSHIP' : 'NON_LEADERSHIP',
     },
     competences,
   };
@@ -379,7 +452,7 @@ export function mountZupLogbook() {
       <span class="title">Zup Logbook</span>
       <button class="close-btn" type="button" title="Fechar">✕</button>
     </div>
-    <textarea placeholder="Cole o texto ou JSON do relato aqui..." autofocus></textarea>
+    <textarea placeholder="Cole o Markdown ou texto do relato aqui..." autofocus></textarea>
     <div class="status"></div>
     <button class="submit-btn" type="button" disabled>Enviar</button>
   `;
@@ -433,7 +506,7 @@ export function mountZupLogbook() {
     try {
       payload = JSON.parse(val);
     } catch {
-      payload = parseLogbookText(val);
+      payload = parseInput(val);
     }
 
     if (!payload || (!payload.title && !payload.content)) {
