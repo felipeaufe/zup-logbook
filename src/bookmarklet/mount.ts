@@ -1,53 +1,252 @@
-import { getAuthToken } from '../services/auth';
-
 const HOST_ID = 'zup-logbook-host';
+
+let capturedToken: string | null = null;
+try {
+  if (typeof window !== 'undefined') {
+    const origFetch = window.fetch;
+    window.fetch = async function (...args) {
+      try {
+        const init = args[1];
+        let h: string | null = null;
+        if (init?.headers) {
+          if (init.headers instanceof Headers) h = init.headers.get('Authorization') || init.headers.get('authorization');
+          else if (Array.isArray(init.headers)) {
+            const found = init.headers.find(([k]) => k.toLowerCase() === 'authorization');
+            if (found) h = found[1];
+          } else if (typeof init.headers === 'object') {
+            h = (init.headers as any).Authorization || (init.headers as any).authorization;
+          }
+        }
+        if (h && h.toLowerCase().startsWith('bearer ')) {
+          const t = h.replace(/^bearer\s+/i, '').trim();
+          if (t.length > 20) capturedToken = t;
+        }
+      } catch {}
+      return origFetch.apply(this, args);
+    };
+
+    const origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+    XMLHttpRequest.prototype.setRequestHeader = function (name: string, val: string) {
+      try {
+        if (name?.toLowerCase() === 'authorization' && val?.toLowerCase().startsWith('bearer ')) {
+          const t = val.replace(/^bearer\s+/i, '').trim();
+          if (t.length > 20) capturedToken = t;
+        }
+      } catch {}
+      return origSetHeader.apply(this, [name, val]);
+    };
+  }
+} catch {}
+
+function getAuthToken(): string | null {
+  if (capturedToken) return capturedToken;
+  if (typeof window === 'undefined') return null;
+
+  const win = window as any;
+  if (win.keycloak?.token) return win.keycloak.token;
+
+  const candidates: { token: string; exp: number }[] = [];
+  const check = (str: string) => {
+    if (!str || typeof str !== 'string') return;
+    const matches = str.match(/eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+/g);
+    if (!matches) return;
+    for (const m of matches) {
+      try {
+        const p = JSON.parse(atob(m.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+        candidates.push({ token: m, exp: p.exp ? p.exp * 1000 : Infinity });
+      } catch {}
+    }
+  };
+
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k) check(sessionStorage.getItem(k) || '');
+    }
+  } catch {}
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k) check(localStorage.getItem(k) || '');
+    }
+  } catch {}
+
+  try { check(document.cookie); } catch {}
+
+  for (const k of ['keycloak', '_keycloak', 'kc', 'auth', 'currentUser', '__PRELOADED_STATE__']) {
+    try { if (win[k]) check(typeof win[k] === 'string' ? win[k] : JSON.stringify(win[k])); } catch {}
+  }
+
+  if (candidates.length > 0) {
+    const now = Date.now();
+    const valid = candidates.filter((c) => c.exp > now);
+    return valid.length > 0 ? valid[0].token : candidates[0].token;
+  }
+  return null;
+}
 
 export function mountZupLogbook() {
   const existing = document.getElementById(HOST_ID);
   if (existing) {
-    existing.style.display = existing.style.display === 'none' ? 'block' : 'none';
+    existing.style.display = existing.style.display === 'none' ? 'flex' : 'none';
+    if (existing.style.display === 'flex') {
+      const textarea = existing.shadowRoot?.querySelector('textarea');
+      textarea?.focus();
+    }
     return;
   }
 
   const host = document.createElement('div');
   host.id = HOST_ID;
   host.style.position = 'fixed';
-  host.style.top = '24px';
-  host.style.right = '24px';
+  host.style.inset = '0';
   host.style.zIndex = '2147483647';
-  host.style.fontFamily = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif';
+  host.style.display = 'flex';
+  host.style.alignItems = 'center';
+  host.style.justifyContent = 'center';
+  host.style.background = 'rgba(0, 0, 0, 0.45)';
+  host.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
   const shadow = host.attachShadow({ mode: 'open' });
 
   const style = document.createElement('style');
-  style.textContent = '*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}.card{width:440px;max-width:calc(100vw - 48px);background:#12141c;color:#f3f4f6;border-radius:16px;border:1px solid #1f2937;box-shadow:0 20px 40px rgba(0,0,0,.6);padding:20px;display:flex;flex-direction:column;gap:14px;font-size:14px;user-select:none}.header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1f2937;padding-bottom:12px}.title-group{display:flex;align-items:center;gap:8px}.dot{width:8px;height:8px;border-radius:50%;background:#a855f7}.title{font-size:15px;font-weight:600;color:#fff}.badge{font-size:11px;background:rgba(88,28,135,.4);color:#d8b4fe;padding:2px 8px;border-radius:9999px;border:1px solid rgba(126,34,206,.3)}.close-btn{background:transparent;border:none;color:#9ca3af;cursor:pointer;padding:4px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s}.close-btn:hover{background:#1f2937;color:#fff}.field{display:flex;flex-direction:column;gap:6px}.label{font-size:12px;font-weight:500;color:#9ca3af}.textarea{width:100%;height:140px;background:#0a0b10;border:1px solid #374151;border-radius:12px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px;color:#e9d5ff;resize:vertical;outline:none;transition:border-color .15s}.textarea:focus{border-color:#a855f7}.hint{font-size:11px;color:#6b7280;text-align:right}.status{display:none;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:12px;font-size:12px;line-height:1.4;word-break:break-word}.status.success{display:flex;background:rgba(6,78,59,.4);border:1px solid rgba(16,185,129,.3);color:#6ee7b7}.status.error{display:flex;background:rgba(136,19,55,.4);border:1px solid rgba(244,63,94,.3);color:#fda4af}.submit-btn{width:100%;padding:10px 16px;border-radius:12px;background:linear-gradient(135deg,#9333ea,#4f46e5);color:#fff;font-size:13px;font-weight:600;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 10px 20px rgba(147,51,234,.2);transition:transform .1s,opacity .15s}.submit-btn:hover:not(:disabled){filter:brightness(1.1)}.submit-btn:active:not(:disabled){transform:scale(.99)}.submit-btn:disabled{opacity:.5;cursor:not-allowed}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}.spinner{animation:spin 1s linear infinite}';
+  style.textContent = `
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    .modal {
+      width: 360px;
+      height: 360px;
+      background: #181920;
+      border: 1px solid #2d3142;
+      border-radius: 12px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 10px;
+      color: #e2e8f0;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .close-btn {
+      background: none;
+      border: none;
+      color: #8892b0;
+      font-size: 16px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+      border-radius: 4px;
+    }
+    .close-btn:hover {
+      color: #fff;
+      background: #252836;
+    }
+    textarea {
+      flex: 1;
+      width: 100%;
+      background: #0f1015;
+      border: 1px solid #2d3142;
+      border-radius: 8px;
+      color: #f1f5f9;
+      padding: 10px;
+      font-size: 12px;
+      font-family: monospace;
+      resize: none;
+      outline: none;
+    }
+    textarea:focus {
+      border-color: #6366f1;
+    }
+    .status {
+      display: none;
+      font-size: 11px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      word-break: break-word;
+      line-height: 1.3;
+    }
+    .status.success {
+      display: block;
+      color: #4ade80;
+      background: rgba(34, 197, 94, 0.12);
+      border: 1px solid rgba(34, 197, 94, 0.25);
+    }
+    .status.error {
+      display: block;
+      color: #f87171;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+    }
+    .submit-btn {
+      width: 100%;
+      height: 38px;
+      background: #6366f1;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .submit-btn:hover:not(:disabled) {
+      background: #4f46e5;
+    }
+    .submit-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  `;
   shadow.appendChild(style);
 
-  const container = document.createElement('div');
-  container.className = 'card';
-  container.innerHTML = '<div class="header"><div class="title-group"><div class="dot"></div><div class="title">Zup Logbook</div><div class="badge">Registro de Performance</div></div><button class="close-btn" type="button" aria-label="Fechar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div><div class="field"><label class="label">Cole o JSON do relato:</label><textarea class="textarea" placeholder=\'{"title": "...", "content": "...", "competences": [...]}\'></textarea><div class="hint">Pressione Ctrl+Enter para enviar</div></div><div class="status"></div><button class="submit-btn" type="button" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg><span>Enviar para o People</span></button>';
-  shadow.appendChild(container);
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.innerHTML = `
+    <div class="header">
+      <span class="title">Zup Logbook</span>
+      <button class="close-btn" type="button" title="Fechar">✕</button>
+    </div>
+    <textarea placeholder="Cole o JSON do relato aqui..." autofocus></textarea>
+    <div class="status"></div>
+    <button class="submit-btn" type="button" disabled>Enviar</button>
+  `;
+  shadow.appendChild(modal);
 
-  const closeBtn = container.querySelector('.close-btn') as HTMLButtonElement;
-  const textarea = container.querySelector('.textarea') as HTMLTextAreaElement;
-  const statusEl = container.querySelector('.status') as HTMLDivElement;
-  const submitBtn = container.querySelector('.submit-btn') as HTMLButtonElement;
+  const closeBtn = modal.querySelector('.close-btn') as HTMLButtonElement;
+  const textarea = modal.querySelector('textarea') as HTMLTextAreaElement;
+  const statusEl = modal.querySelector('.status') as HTMLDivElement;
+  const submitBtn = modal.querySelector('.submit-btn') as HTMLButtonElement;
 
-  closeBtn.onclick = () => {
+  const close = () => {
     host.style.display = 'none';
   };
 
-  const showStatus = (type: 'success' | 'error', text: string) => {
+  closeBtn.onclick = close;
+
+  host.onclick = (e) => {
+    if (e.target === host) close();
+  };
+
+  const showStatus = (type: 'success' | 'error', msg: string) => {
     statusEl.className = `status ${type}`;
-    const iconSvg = type === 'success'
-      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>'
-      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
-    statusEl.innerHTML = `${iconSvg}<span>${text}</span>`;
+    statusEl.textContent = msg;
   };
 
   const clearStatus = () => {
     statusEl.className = 'status';
-    statusEl.innerHTML = '';
+    statusEl.textContent = '';
   };
 
   textarea.oninput = () => {
@@ -58,7 +257,7 @@ export function mountZupLogbook() {
   const send = async () => {
     const val = textarea.value.trim();
     if (!val) {
-      showStatus('error', 'Por favor, cole o JSON do relato antes de enviar.');
+      showStatus('error', 'Cole o JSON antes de enviar.');
       return;
     }
 
@@ -71,12 +270,12 @@ export function mountZupLogbook() {
 
     const token = getAuthToken();
     if (!token) {
-      showStatus('error', 'Token de autenticação não encontrado. Certifique-se de estar logado no People Zup.');
+      showStatus('error', 'Token de autenticação não encontrado na página.');
       return;
     }
 
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>Enviando...</span>';
+    submitBtn.textContent = 'Enviando...';
     clearStatus();
 
     try {
@@ -93,37 +292,38 @@ export function mountZupLogbook() {
 
       const text = await res.text();
       let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { text };
-      }
+      try { data = JSON.parse(text); } catch { data = { text }; }
 
       if (res.ok) {
-        showStatus('success', `Diário de Bordo${data?.id ? ` #${data.id}` : ''} registrado com sucesso no People Zup!`);
+        showStatus('success', `Relato${data?.id ? ` #${data.id}` : ''} enviado com sucesso!`);
         textarea.value = '';
         submitBtn.disabled = true;
       } else {
         const msg = data?.message || data?.error || text || `Status HTTP ${res.status}`;
-        showStatus('error', `Falha ao registrar (${res.status}): ${msg}`);
+        showStatus('error', `Falha (${res.status}): ${msg}`);
       }
     } catch (err: any) {
-      showStatus('error', `Erro de conexão com People Zup: ${err.message}`);
+      showStatus('error', `Erro de conexão: ${err.message}`);
     } finally {
-      submitBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg><span>Enviar para o People</span>';
+      submitBtn.textContent = 'Enviar';
       submitBtn.disabled = !textarea.value.trim();
     }
   };
 
-  submitBtn.onclick = () => send();
+  submitBtn.onclick = send;
 
   textarea.onkeydown = (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
       send();
+    }
+    if (e.key === 'Escape') {
+      close();
     }
   };
 
   document.body.appendChild(host);
+  setTimeout(() => textarea.focus(), 50);
 }
 
 mountZupLogbook();

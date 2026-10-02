@@ -1,1 +1,106 @@
-(function(b){"use strict";let f=null;try{if(typeof window<"u"){const n=window.fetch;window.fetch=async function(...s){try{const e=s[1];let t=null;if(e&&e.headers)if(e.headers instanceof Headers)t=e.headers.get("Authorization")||e.headers.get("authorization");else if(Array.isArray(e.headers)){const o=e.headers.find(([a])=>a.toLowerCase()==="authorization");o&&(t=o[1])}else typeof e.headers=="object"&&(t=e.headers.Authorization||e.headers.authorization||e.headers.AUTHORIZATION);if(t&&t.toLowerCase().startsWith("bearer ")){const o=t.replace(/^bearer\s+/i,"").trim();o&&o.length>20&&(f=o)}}catch{}return n.apply(this,s)};const r=XMLHttpRequest.prototype.setRequestHeader;XMLHttpRequest.prototype.setRequestHeader=function(s,e){try{if(s&&s.toLowerCase()==="authorization"&&e&&e.toLowerCase().startsWith("bearer ")){const t=e.replace(/^bearer\s+/i,"").trim();t&&t.length>20&&(f=t)}}catch{}return r.apply(this,[s,e])}}}catch{}function w(n){return!n||typeof n!="string"?[]:n.match(/eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+/g)||[]}function v(){if(f)return f;if(typeof window>"u")return null;const n=window;if(n.keycloak?.token)return n.keycloak.token;const r=[],s=e=>{const t=w(e);for(const o of t)try{const a=o.split("."),c=JSON.parse(atob(a[1].replace(/-/g,"+").replace(/_/g,"/")));r.push({token:o,exp:c.exp?c.exp*1e3:1/0})}catch{}};try{for(let e=0;e<sessionStorage.length;e++){const t=sessionStorage.key(e);if(t){const o=sessionStorage.getItem(t);o&&s(o)}}}catch{}try{for(let e=0;e<localStorage.length;e++){const t=localStorage.key(e);if(t){const o=localStorage.getItem(t);o&&s(o)}}}catch{}try{s(document.cookie)}catch{}for(const e of["keycloak","_keycloak","kc","auth","currentUser","__PRELOADED_STATE__"])try{n[e]&&s(typeof n[e]=="string"?n[e]:JSON.stringify(n[e]))}catch{}if(r.length>0){const e=Date.now(),t=r.filter(o=>o.exp>e);return t.length>0?t[0].token:r[0].token}return null}const x="zup-logbook-host";function y(){const n=document.getElementById(x);if(n){n.style.display=n.style.display==="none"?"block":"none";return}const r=document.createElement("div");r.id=x,r.style.position="fixed",r.style.top="24px",r.style.right="24px",r.style.zIndex="2147483647",r.style.fontFamily='-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif';const s=r.attachShadow({mode:"open"}),e=document.createElement("style");e.textContent="*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}.card{width:440px;max-width:calc(100vw - 48px);background:#12141c;color:#f3f4f6;border-radius:16px;border:1px solid #1f2937;box-shadow:0 20px 40px rgba(0,0,0,.6);padding:20px;display:flex;flex-direction:column;gap:14px;font-size:14px;user-select:none}.header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1f2937;padding-bottom:12px}.title-group{display:flex;align-items:center;gap:8px}.dot{width:8px;height:8px;border-radius:50%;background:#a855f7}.title{font-size:15px;font-weight:600;color:#fff}.badge{font-size:11px;background:rgba(88,28,135,.4);color:#d8b4fe;padding:2px 8px;border-radius:9999px;border:1px solid rgba(126,34,206,.3)}.close-btn{background:transparent;border:none;color:#9ca3af;cursor:pointer;padding:4px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s}.close-btn:hover{background:#1f2937;color:#fff}.field{display:flex;flex-direction:column;gap:6px}.label{font-size:12px;font-weight:500;color:#9ca3af}.textarea{width:100%;height:140px;background:#0a0b10;border:1px solid #374151;border-radius:12px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px;color:#e9d5ff;resize:vertical;outline:none;transition:border-color .15s}.textarea:focus{border-color:#a855f7}.hint{font-size:11px;color:#6b7280;text-align:right}.status{display:none;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:12px;font-size:12px;line-height:1.4;word-break:break-word}.status.success{display:flex;background:rgba(6,78,59,.4);border:1px solid rgba(16,185,129,.3);color:#6ee7b7}.status.error{display:flex;background:rgba(136,19,55,.4);border:1px solid rgba(244,63,94,.3);color:#fda4af}.submit-btn{width:100%;padding:10px 16px;border-radius:12px;background:linear-gradient(135deg,#9333ea,#4f46e5);color:#fff;font-size:13px;font-weight:600;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 10px 20px rgba(147,51,234,.2);transition:transform .1s,opacity .15s}.submit-btn:hover:not(:disabled){filter:brightness(1.1)}.submit-btn:active:not(:disabled){transform:scale(.99)}.submit-btn:disabled{opacity:.5;cursor:not-allowed}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}.spinner{animation:spin 1s linear infinite}",s.appendChild(e);const t=document.createElement("div");t.className="card",t.innerHTML=`<div class="header"><div class="title-group"><div class="dot"></div><div class="title">Zup Logbook</div><div class="badge">Registro de Performance</div></div><button class="close-btn" type="button" aria-label="Fechar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div><div class="field"><label class="label">Cole o JSON do relato:</label><textarea class="textarea" placeholder='{"title": "...", "content": "...", "competences": [...]}'></textarea><div class="hint">Pressione Ctrl+Enter para enviar</div></div><div class="status"></div><button class="submit-btn" type="button" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg><span>Enviar para o People</span></button>`,s.appendChild(t);const o=t.querySelector(".close-btn"),a=t.querySelector(".textarea"),c=t.querySelector(".status"),d=t.querySelector(".submit-btn");o.onclick=()=>{r.style.display="none"};const p=(i,h)=>{c.className=`status ${i}`;const l=i==="success"?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';c.innerHTML=`${l}<span>${h}</span>`},k=()=>{c.className="status",c.innerHTML=""};a.oninput=()=>{d.disabled=!a.value.trim(),k()};const m=async()=>{const i=a.value.trim();if(!i){p("error","Por favor, cole o JSON do relato antes de enviar.");return}try{JSON.parse(i)}catch(l){p("error",`JSON inválido: ${l.message}`);return}const h=v();if(!h){p("error","Token de autenticação não encontrado. Certifique-se de estar logado no People Zup.");return}d.disabled=!0,d.innerHTML='<svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>Enviando...</span>',k();try{const l=await fetch("https://apiznt.zenity.zup.com.br/dune/v1/entry",{method:"POST",headers:{"Content-Type":"application/json",Accept:"*/*",authorization:`Bearer ${h}`},credentials:"omit",body:i}),g=await l.text();let u={};try{u=JSON.parse(g)}catch{u={text:g}}if(l.ok)p("success",`Diário de Bordo${u?.id?` #${u.id}`:""} registrado com sucesso no People Zup!`),a.value="",d.disabled=!0;else{const S=u?.message||u?.error||g||`Status HTTP ${l.status}`;p("error",`Falha ao registrar (${l.status}): ${S}`)}}catch(l){p("error",`Erro de conexão com People Zup: ${l.message}`)}finally{d.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg><span>Enviar para o People</span>',d.disabled=!a.value.trim()}};d.onclick=()=>m(),a.onkeydown=i=>{(i.ctrlKey||i.metaKey)&&i.key==="Enter"&&m()},document.body.appendChild(r)}y(),b.mountZupLogbook=y,Object.defineProperty(b,Symbol.toStringTag,{value:"Module"})})(this.ZupLogbook=this.ZupLogbook||{});
+(function(g){"use strict";const x="zup-logbook-host";let p=null;try{if(typeof window<"u"){const n=window.fetch;window.fetch=async function(...a){try{const e=a[1];let t=null;if(e?.headers)if(e.headers instanceof Headers)t=e.headers.get("Authorization")||e.headers.get("authorization");else if(Array.isArray(e.headers)){const s=e.headers.find(([i])=>i.toLowerCase()==="authorization");s&&(t=s[1])}else typeof e.headers=="object"&&(t=e.headers.Authorization||e.headers.authorization);if(t&&t.toLowerCase().startsWith("bearer ")){const s=t.replace(/^bearer\s+/i,"").trim();s.length>20&&(p=s)}}catch{}return n.apply(this,a)};const o=XMLHttpRequest.prototype.setRequestHeader;XMLHttpRequest.prototype.setRequestHeader=function(a,e){try{if(a?.toLowerCase()==="authorization"&&e?.toLowerCase().startsWith("bearer ")){const t=e.replace(/^bearer\s+/i,"").trim();t.length>20&&(p=t)}}catch{}return o.apply(this,[a,e])}}}catch{}function S(){if(p)return p;if(typeof window>"u")return null;const n=window;if(n.keycloak?.token)return n.keycloak.token;const o=[],a=e=>{if(!e||typeof e!="string")return;const t=e.match(/eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+/g);if(t)for(const s of t)try{const i=JSON.parse(atob(s.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));o.push({token:s,exp:i.exp?i.exp*1e3:1/0})}catch{}};try{for(let e=0;e<sessionStorage.length;e++){const t=sessionStorage.key(e);t&&a(sessionStorage.getItem(t)||"")}}catch{}try{for(let e=0;e<localStorage.length;e++){const t=localStorage.key(e);t&&a(localStorage.getItem(t)||"")}}catch{}try{a(document.cookie)}catch{}for(const e of["keycloak","_keycloak","kc","auth","currentUser","__PRELOADED_STATE__"])try{n[e]&&a(typeof n[e]=="string"?n[e]:JSON.stringify(n[e]))}catch{}if(o.length>0){const e=Date.now(),t=o.filter(s=>s.exp>e);return t.length>0?t[0].token:o[0].token}return null}function m(){const n=document.getElementById(x);if(n){n.style.display=n.style.display==="none"?"flex":"none",n.style.display==="flex"&&n.shadowRoot?.querySelector("textarea")?.focus();return}const o=document.createElement("div");o.id=x,o.style.position="fixed",o.style.inset="0",o.style.zIndex="2147483647",o.style.display="flex",o.style.alignItems="center",o.style.justifyContent="center",o.style.background="rgba(0, 0, 0, 0.45)",o.style.fontFamily='-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';const a=o.attachShadow({mode:"open"}),e=document.createElement("style");e.textContent=`
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    .modal {
+      width: 360px;
+      height: 360px;
+      background: #181920;
+      border: 1px solid #2d3142;
+      border-radius: 12px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 10px;
+      color: #e2e8f0;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .close-btn {
+      background: none;
+      border: none;
+      color: #8892b0;
+      font-size: 16px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+      border-radius: 4px;
+    }
+    .close-btn:hover {
+      color: #fff;
+      background: #252836;
+    }
+    textarea {
+      flex: 1;
+      width: 100%;
+      background: #0f1015;
+      border: 1px solid #2d3142;
+      border-radius: 8px;
+      color: #f1f5f9;
+      padding: 10px;
+      font-size: 12px;
+      font-family: monospace;
+      resize: none;
+      outline: none;
+    }
+    textarea:focus {
+      border-color: #6366f1;
+    }
+    .status {
+      display: none;
+      font-size: 11px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      word-break: break-word;
+      line-height: 1.3;
+    }
+    .status.success {
+      display: block;
+      color: #4ade80;
+      background: rgba(34, 197, 94, 0.12);
+      border: 1px solid rgba(34, 197, 94, 0.25);
+    }
+    .status.error {
+      display: block;
+      color: #f87171;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+    }
+    .submit-btn {
+      width: 100%;
+      height: 38px;
+      background: #6366f1;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .submit-btn:hover:not(:disabled) {
+      background: #4f46e5;
+    }
+    .submit-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  `,a.appendChild(e);const t=document.createElement("div");t.className="modal",t.innerHTML=`
+    <div class="header">
+      <span class="title">Zup Logbook</span>
+      <button class="close-btn" type="button" title="Fechar">✕</button>
+    </div>
+    <textarea placeholder="Cole o JSON do relato aqui..." autofocus></textarea>
+    <div class="status"></div>
+    <button class="submit-btn" type="button" disabled>Enviar</button>
+  `,a.appendChild(t);const s=t.querySelector(".close-btn"),i=t.querySelector("textarea"),f=t.querySelector(".status"),l=t.querySelector(".submit-btn"),b=()=>{o.style.display="none"};s.onclick=b,o.onclick=r=>{r.target===o&&b()};const d=(r,y)=>{f.className=`status ${r}`,f.textContent=y},k=()=>{f.className="status",f.textContent=""};i.oninput=()=>{l.disabled=!i.value.trim(),k()};const w=async()=>{const r=i.value.trim();if(!r){d("error","Cole o JSON antes de enviar.");return}try{JSON.parse(r)}catch(c){d("error",`JSON inválido: ${c.message}`);return}const y=S();if(!y){d("error","Token de autenticação não encontrado na página.");return}l.disabled=!0,l.textContent="Enviando...",k();try{const c=await fetch("https://apiznt.zenity.zup.com.br/dune/v1/entry",{method:"POST",headers:{"Content-Type":"application/json",Accept:"*/*",authorization:`Bearer ${y}`},credentials:"omit",body:r}),h=await c.text();let u={};try{u=JSON.parse(h)}catch{u={text:h}}if(c.ok)d("success",`Relato${u?.id?` #${u.id}`:""} enviado com sucesso!`),i.value="",l.disabled=!0;else{const z=u?.message||u?.error||h||`Status HTTP ${c.status}`;d("error",`Falha (${c.status}): ${z}`)}}catch(c){d("error",`Erro de conexão: ${c.message}`)}finally{l.textContent="Enviar",l.disabled=!i.value.trim()}};l.onclick=w,i.onkeydown=r=>{(r.ctrlKey||r.metaKey)&&r.key==="Enter"&&(r.preventDefault(),w()),r.key==="Escape"&&b()},document.body.appendChild(o),setTimeout(()=>i.focus(),50)}m(),g.mountZupLogbook=m,Object.defineProperty(g,Symbol.toStringTag,{value:"Module"})})(this.ZupLogbook=this.ZupLogbook||{});
