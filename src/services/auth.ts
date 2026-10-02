@@ -1,6 +1,5 @@
 let capturedToken: string | null = null;
 
-// Intercepta chamadas na página do People Zup para capturar o Bearer token automaticamente
 try {
   if (typeof window !== 'undefined') {
     const originalFetch = window.fetch;
@@ -53,14 +52,10 @@ function extractAllJwtsFromString(raw: string): string[] {
 }
 
 export function getAuthToken(): string | null {
-  // 1. Token capturado via interceptador em requisições de rede
   if (capturedToken) return capturedToken;
-
   if (typeof window === 'undefined') return null;
 
   const win = window as any;
-
-  // 2. Objeto window.keycloak
   if (win.keycloak?.token) return win.keycloak.token;
 
   const candidates: { token: string; exp: number }[] = [];
@@ -79,7 +74,6 @@ export function getAuthToken(): string | null {
     }
   };
 
-  // 3. sessionStorage
   try {
     for (let i = 0; i < sessionStorage.length; i++) {
       const key = sessionStorage.key(i);
@@ -90,7 +84,6 @@ export function getAuthToken(): string | null {
     }
   } catch {}
 
-  // 4. localStorage
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -101,12 +94,10 @@ export function getAuthToken(): string | null {
     }
   } catch {}
 
-  // 5. document.cookie
   try {
     checkString(document.cookie);
   } catch {}
 
-  // 6. Variáveis globais no window
   for (const k of ['keycloak', '_keycloak', 'kc', 'auth', 'currentUser', '__PRELOADED_STATE__']) {
     try {
       if (win[k]) {
@@ -118,9 +109,7 @@ export function getAuthToken(): string | null {
   if (candidates.length > 0) {
     const now = Date.now();
     const valid = candidates.filter((c) => c.exp > now);
-    if (valid.length > 0) {
-      return valid[0].token;
-    }
+    if (valid.length > 0) return valid[0].token;
     return candidates[0].token;
   }
 
