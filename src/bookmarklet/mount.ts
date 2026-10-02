@@ -57,18 +57,18 @@ function findCompetence(name: string) {
 }
 
 function parseInput(raw: string) {
-  const clean = raw.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '').trim();
+  let clean = raw.trim().replace(/^```[a-z0-9_-]*\s*/i, '').replace(/\s*```$/, '').trim();
 
   // 1. Verifica se é Markdown padrão com seções ##
   const hasMarkdownHeaders = /^##+\s+/m.test(clean);
 
   if (hasMarkdownHeaders) {
     let title = '';
-    const titleMatch = clean.match(/^#\s+(.+)$/m) || clean.match(/^t[ií]tulo:\s*(.+)$/mi);
+    const titleMatch = clean.match(/^#\s*(?:t[ií]tulo:\s*)?(.+)$/mi) || clean.match(/^t[ií]tulo:\s*(.+)$/mi);
     if (titleMatch) {
-      title = titleMatch[1].trim();
+      title = titleMatch[1].replace(/^t[ií]tulo:\s*/i, '').trim();
     } else {
-      title = clean.split(/\r?\n/)[0]?.replace(/^[#\s*_-]+/, '').trim() || '';
+      title = clean.split(/\r?\n/)[0]?.replace(/^[#\s*_-]+/, '').replace(/^t[ií]tulo:\s*/i, '').trim() || '';
     }
 
     const sectionRegex = /^##+\s+(.+)$/gm;
@@ -154,7 +154,7 @@ function parseInput(raw: string) {
   } else {
     title = text.split(/\r?\n/)[0]?.replace(/t[ií]tulo:\s*/i, '').trim() || '';
   }
-  title = title.split(/\r?\n/)[0]?.trim() || '';
+  title = title.split(/\r?\n/)[0]?.replace(/^t[ií]tulo:\s*/i, '').trim() || '';
 
   const topicPattern = /(Resultado\/impacto(?:\s*\(momento atual\))?:?|Atitude e comportamento:?|Conhecimento T[eé]cnico da Pr[aá]tica:?|Aprendizado Tech:?|Expectativas de Entregas:?|Coment[aá]rios Adicionais(?: e Feedback Recebido)?:?)/gi;
 
